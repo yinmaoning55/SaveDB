@@ -1,0 +1,8 @@
+{
+  "port": 40000,
+  "serverIp": "10.12.172.9",
+  "logs": {
+    "path":"logs",
+    "defaultLevel": "info"
+  }
+}
