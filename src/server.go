@@ -10,14 +10,26 @@ import (
 	"time"
 )
 
+var commandTables = []string{"get", "set"}
+var saveCommandMap map[string]saveDBCommand
+
 // 所有的命令 基本上和redis一样
-type saveCommands struct {
+type saveDBCommand struct {
+	name            string                  //参数名字
+	saveCommandProc func(m *Message) string //执行的函数
+	arity           int                     //参数个数
 }
 
 func main() {
-	Config.loadConfig("config/config.yaml")
+	args := os.Args
+	path := "config/config.yaml"
+	if len(args) == 2 {
+		path = args[1]
+	}
+	Config.loadConfig(path)
 	InitLog(Config.Logs)
 	SaveDBLogger.Infof("init config!", Config)
+	initCommand()
 	err := StartTCPServer(Config.Port)
 	if err != nil {
 		SaveDBLogger.Error("tcp server start fail err=", err)
@@ -66,5 +78,31 @@ func (config *serverConfig) loadConfig(path string) {
 	config.Logs.DefaultLevel = "info"
 }
 
+var server = &saveServer{}
+
 type saveServer struct {
+	Read chan *Message
+}
+
+func mainGoroutine() {
+	select {
+	case msg, ok := <-server.Read:
+		conn := tcpServer.Connections[*msg.Conn]
+		if !ok {
+			if conn.Close.Load() {
+				conn.ConnClose()
+			}
+		} else {
+			//逻辑处理
+
+			//写回
+			wMsg := &Message{}
+			tcpServer.Connections[*msg.Conn].Writer <- wMsg
+		}
+	}
+}
+func initCommand() {
+	saveCommandMap = make(map[string]saveDBCommand)
+	saveCommandMap[commandTables[0]] = saveDBCommand{name: commandTables[0], saveCommandProc: getCommand, arity: 1}
+	saveCommandMap[commandTables[1]] = saveDBCommand{name: commandTables[1], saveCommandProc: setCommand, arity: 1}
 }
