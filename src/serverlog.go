@@ -1,4 +1,4 @@
-package common
+package main
 
 import (
 	"go.uber.org/zap"
@@ -7,8 +7,7 @@ import (
 	"os"
 )
 
-var NetLogger *zap.SugaredLogger
-var DBLogger *zap.SugaredLogger
+var SaveDBLogger *zap.SugaredLogger
 var allLoger map[string]*zap.SugaredLogger
 
 func GetLogger(name string) *zap.SugaredLogger {
@@ -150,12 +149,10 @@ func InitLog(config *LogConfig) {
 	}
 	allLoger = map[string]*zap.SugaredLogger{}
 	errorCore := createErrorLoger(config)
-	DBLogger = createLogger(config, "db", config.Levels["db"], errorCore)
-	allLoger["db"] = DBLogger
-	NetLogger = createLogger(config, "net", config.Levels["net"], errorCore)
-	allLoger["net"] = NetLogger
+	SaveDBLogger = createLogger(config, "saveDB", config.Levels["saveDB"], errorCore)
+	allLoger["saveDB"] = SaveDBLogger
 	for k, v := range config.Levels {
-		if k != "game" && k != "zmq" && k != "db" && k != "http" && k != "net" {
+		if k != "saveDB" {
 			allLoger[k] = createLogger(config, k, v, errorCore)
 		}
 	}

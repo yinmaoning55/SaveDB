@@ -1,0 +1,5 @@
+2023-12-28T11:01:05.732+0800	INFO	src/server.go:20	main.main	init config!%!(EXTRA *main.serverConfig=&{40000 0xc0001ac340})
+2023-12-28T11:01:05.733+0800	INFO	src/tcp_sever.go:26	main.StartTCPServer	TCP Server started, Listen ::40000
+2023-12-28T11:01:05.733+0800	INFO	src/server.go:31	main.main	server start successful!
+2023-12-28T11:01:16.511+0800	INFO	src/server.go:37	main.main	server will stop...
+2023-12-28T11:01:17.515+0800	INFO	src/server.go:42	main.main	server stopped by%!(EXTRA string=interrupt)
