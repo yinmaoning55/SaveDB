@@ -1,20 +1,33 @@
-package main
+package src
 
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
+	"gopkg.in/yaml.v3"
 	"io"
+	"io/ioutil"
 	"net"
 	"strconv"
 	"strings"
 	"sync/atomic"
 )
 
-var tcpServer = &TCPServer{}
+var TcpServer = &TCPServer{}
 
 type TCPServer struct {
 	Connections map[net.Conn]Connection
 	Close       atomic.Bool
+}
+
+var commandTables = []string{"get", "set"}
+var saveCommandMap map[string]saveDBCommand
+
+// 所有的命令 基本上和redis一样
+type saveDBCommand struct {
+	name            string                  //参数名字
+	saveCommandProc func(m *Message) string //执行的函数
+	arity           int                     //参数个数
 }
 
 func StartTCPServer(port int) error {
@@ -28,8 +41,8 @@ func StartTCPServer(port int) error {
 	}
 	SaveDBLogger.Infof("TCP Server started, Listen :%s", address)
 	conns := make(map[net.Conn]Connection)
-	tcpServer.Connections = conns
-	go tcpServer.acceptConn(listener)
+	TcpServer.Connections = conns
+	go TcpServer.acceptConn(listener)
 	return nil
 }
 func (server *TCPServer) acceptConn(listener net.Listener) {
@@ -75,7 +88,7 @@ func (c *Connection) ConnOpen() {
 	SaveDBLogger.Infof("connection establishment conn=%v", c.Conn.RemoteAddr())
 }
 func (c *Connection) ConnClose() {
-	delete(tcpServer.Connections, c.Conn)
+	delete(TcpServer.Connections, c.Conn)
 	SaveDBLogger.Infof("connection closed conn=%v", c.Conn.RemoteAddr())
 	_ = (c.Conn).Close()
 }
@@ -167,7 +180,7 @@ func onMessage(conn *net.Conn) {
 	w := make(chan *Message)
 	connection.Writer = w
 	connection.Conn = *conn
-	tcpServer.Connections[*conn] = *connection
+	TcpServer.Connections[*conn] = *connection
 	//先建立连接
 	connection.ConnOpen()
 	connection.RemoteAddr = (*conn).RemoteAddr()
@@ -191,10 +204,60 @@ func createWriterMsg(str string) *Message {
 func createReadMsg() {
 
 }
+
+var Config *serverConfig = &serverConfig{}
+
+type serverConfig struct {
+	Port int        `json:"port"`
+	Logs *LogConfig `json:"logs"`
+}
+
+func (config *serverConfig) LoadConfig(path string) {
+	yamlFile, err := ioutil.ReadFile(path)
+	if err != nil {
+		fmt.Println("Open config file error", err.Error())
+		return
+	}
+	e := yaml.Unmarshal(yamlFile, config)
+	if e != nil {
+		fmt.Println("read config file erro", err.Error())
+		return
+	}
+	config.Logs.DefaultLevel = "info"
+}
+
+var server = &saveServer{}
+
+type saveServer struct {
+	Read chan *Message
+}
+
 func ReadInt(bs []byte) int32 {
 	u := binary.BigEndian.Uint32(bs)
 	return int32(u)
 }
 func writeInt32(bs []byte, pos int, v int32) {
 	binary.BigEndian.PutUint32(bs[pos:], uint32(v))
+}
+func MainGoroutine() {
+	select {
+	case msg, ok := <-server.Read:
+		conn := TcpServer.Connections[*msg.Conn]
+		if !ok {
+			if conn.Close.Load() {
+				conn.ConnClose()
+			}
+		} else {
+			//逻辑处理
+
+			//写回
+			wMsg := &Message{}
+			TcpServer.Connections[*msg.Conn].Writer <- wMsg
+		}
+	}
+}
+func InitCommand() {
+	saveCommandMap = make(map[string]saveDBCommand)
+	saveCommandMap[commandTables[0]] = saveDBCommand{name: commandTables[0], saveCommandProc: getCommand, arity: 1}
+	saveCommandMap[commandTables[1]] = saveDBCommand{name: commandTables[1], saveCommandProc: setCommand, arity: 1}
 }

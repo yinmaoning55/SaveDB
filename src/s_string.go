@@ -1,4 +1,4 @@
-package main
+package src
 
 func getCommand(m *Message) string {
 	return ""

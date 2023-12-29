@@ -1,4 +1,4 @@
-package main
+package src
 
 const (
 	C_OK              = "0"

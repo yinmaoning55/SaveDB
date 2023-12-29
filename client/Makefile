@@ -1,4 +1,4 @@
-NAME=savedb
+NAME=savedb-client
 BINDIR=../bin
 GOBUILD=CGO_ENABLED=1 go build  -buildmode=plugin  -ldflags '-w -s -buildid='
 
@@ -11,12 +11,12 @@ endif
 all: darwin-amd64
 
 linux:
-	GOARCH=amd64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.so.1.$(v) server.go
+	GOARCH=amd64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.so.1.$(v) client.go
 	if [ -e  $(BINDIR)/$(NAME)-$@.so.1 ]; then rm $(BINDIR)/$(NAME)-$@.so.1; fi
 	ln -s $(BINDIR)/$(NAME)-$@.so.1.$(v) $(BINDIR)/$(NAME)-$@.so.1
 
 darwin-amd64:
-	GOARCH=amd64 GOOS=darwin $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.so.1.$(v) server.go
+	GOARCH=amd64 GOOS=darwin $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.so.1.$(v) client.go
 	if [ -e  $(BINDIR)/$(NAME)-$@.so.1 ]; then rm $(BINDIR)/$(NAME)-$@.so.1; fi
 	ln -s $(BINDIR)/$(NAME)-$@.so.1.$(v) $(BINDIR)/$(NAME)-$@.so.1
 
@@ -25,7 +25,7 @@ win64:
 	set GOARCH=amd64
 	set GOOS=windows
 	set CGO_ENABLED=1
-	go build -ldflags '-w -s -buildid=' -o $(BINDIR)/$(NAME)-$@.exe server.go
+	go build -ldflags '-w -s -buildid=' -o $(BINDIR)/$(NAME)-$@.exe *.go
 
 releases: linux-amd64 macos-amd64  win64
 	chmod +x $(BINDIR)/$(NAME)-*
