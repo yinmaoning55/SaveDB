@@ -42,6 +42,8 @@ func StartTCPServer(port int) error {
 	SaveDBLogger.Infof("TCP Server started, Listen :%s", address)
 	conns := make(map[net.Conn]Connection)
 	TcpServer.Connections = conns
+	allRead := make(chan *Message)
+	server.Read = allRead
 	go TcpServer.acceptConn(listener)
 	return nil
 }
@@ -87,11 +89,13 @@ type OnConnection interface {
 func (c *Connection) ConnOpen() {
 	SaveDBLogger.Infof("connection establishment conn=%v", c.Conn.RemoteAddr())
 }
+
 func (c *Connection) ConnClose() {
 	delete(TcpServer.Connections, c.Conn)
 	SaveDBLogger.Infof("connection closed conn=%v", c.Conn.RemoteAddr())
 	_ = (c.Conn).Close()
 }
+
 func (c *Connection) ReadMsg() {
 	defer func() {
 		c.ConnClose()
@@ -114,6 +118,10 @@ func (c *Connection) ReadMsg() {
 		}
 		//序列化指令格式为: command 参数1 参数2 参数3 ........
 		str := string(bufd)
+		if str == "" {
+			ReturnErr(C_ERR, c)
+			continue
+		}
 		words := strings.Fields(str)
 		command := words[0]
 		com, ok := saveCommandMap[command]
@@ -123,14 +131,12 @@ func (c *Connection) ReadMsg() {
 		}
 		//非法格式直接返回错误
 		if !ok {
-			msg := createWriterMsg(C_ERR)
-			c.Writer <- msg
+			ReturnErr(C_ERR, c)
 			continue
 		}
 		//非法参数长度直接返回错误
-		if len(words)-1 > com.arity {
-			msg := createWriterMsg(C_ERR)
-			c.Writer <- msg
+		if len(words)-1 < com.arity {
+			ReturnErr(C_ERR, c)
 			continue
 		}
 		args := words[1:]
@@ -142,6 +148,7 @@ func (c *Connection) ReadMsg() {
 		server.Read <- msg
 	}
 }
+
 func (c *Connection) WriterMsg() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -162,8 +169,6 @@ func (c *Connection) WriterMsg() {
 				data := msg.ReturnData
 				_, _ = c.Conn.Write(*data)
 			}
-		default:
-			break
 		}
 	}
 }
@@ -180,12 +185,13 @@ func onMessage(conn *net.Conn) {
 	w := make(chan *Message)
 	connection.Writer = w
 	connection.Conn = *conn
+	var flag atomic.Bool
+	connection.Close = &flag
 	TcpServer.Connections[*conn] = *connection
 	//先建立连接
 	connection.ConnOpen()
 	connection.RemoteAddr = (*conn).RemoteAddr()
-	var flag atomic.Bool
-	connection.Close = &flag
+
 	//读写分离
 	go connection.ReadMsg()
 	connection.WriterMsg()
@@ -200,6 +206,10 @@ func createWriterMsg(str string) *Message {
 	copy(data[4:], strBytes)
 	msg := &Message{ReturnData: &data}
 	return msg
+}
+func ReturnErr(str string, c *Connection) {
+	msg := createWriterMsg(C_ERR)
+	c.Writer <- msg
 }
 func createReadMsg() {
 
@@ -220,7 +230,7 @@ func (config *serverConfig) LoadConfig(path string) {
 	}
 	e := yaml.Unmarshal(yamlFile, config)
 	if e != nil {
-		fmt.Println("read config file erro", err.Error())
+		fmt.Println("read config file error", err.Error())
 		return
 	}
 	config.Logs.DefaultLevel = "info"
@@ -240,21 +250,29 @@ func writeInt32(bs []byte, pos int, v int32) {
 	binary.BigEndian.PutUint32(bs[pos:], uint32(v))
 }
 func MainGoroutine() {
-	select {
-	case msg, ok := <-server.Read:
-		conn := TcpServer.Connections[*msg.Conn]
-		if !ok {
-			if conn.Close.Load() {
-				conn.ConnClose()
+	defer func() {
+		if e := recover(); e != nil {
+			fmt.Println("recover the panic:", e)
+		}
+	}()
+	for {
+		select {
+		case msg, ok := <-server.Read:
+			conn := TcpServer.Connections[*msg.Conn]
+			if !ok {
+				if conn.Close.Load() {
+					conn.ConnClose()
+				}
+			} else {
+				//逻辑处理
+				command := saveCommandMap[*msg.Command]
+				//写回
+				wMsg := createWriterMsg(command.saveCommandProc(msg))
+				TcpServer.Connections[*msg.Conn].Writer <- wMsg
 			}
-		} else {
-			//逻辑处理
-
-			//写回
-			wMsg := &Message{}
-			TcpServer.Connections[*msg.Conn].Writer <- wMsg
 		}
 	}
+
 }
 func InitCommand() {
 	saveCommandMap = make(map[string]saveDBCommand)

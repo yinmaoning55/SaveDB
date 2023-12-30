@@ -35,7 +35,7 @@ func StartClient(ip string, port int) *TCPClient {
 		fmt.Println(conn.LocalAddr().String(), "<->", address, " conn successful.")
 		client.connection.Conn = conn
 		go handleClienRead(conn, client)
-		go handleClienWrite(&connection, conn)
+		go handleClientWrite(&connection, conn)
 	}()
 
 	return client
@@ -71,7 +71,7 @@ func handleClienRead(con net.Conn, client *TCPClient) {
 	}
 
 }
-func handleClienWrite(connection *Connection, conn net.Conn) {
+func handleClientWrite(connection *Connection, conn net.Conn) {
 	defer func() {
 		if !connection.Close.Load() {
 			connection.Close.Store(true)
@@ -86,7 +86,7 @@ func handleClienWrite(connection *Connection, conn net.Conn) {
 				fmt.Println("Connection close")
 				return
 			} else {
-				conn.Write(*msg.ReturnData)
+				_, _ = conn.Write(*msg.ReturnData)
 			}
 		}
 	}
@@ -100,31 +100,22 @@ func (client *TCPClient) SendMsg(str string) string {
 	copy(data[4:], strBytes)
 	msg := &Message{ReturnData: &data}
 	client.connection.Writer <- msg
-	defer func() {
-		client.close()
-		if !client.connection.Close.Load() {
-			client.connection.Close.Store(true)
-			close(client.connection.Read)
-		}
-	}()
-	restr := ""
+
 	for {
 		select {
 		case msg, ok := <-client.connection.Read:
 			if !ok {
 				//主动关闭链接了
-				fmt.Println("Connection close by self", client.connection.RemoteAddr)
 				return "Connection close"
 			} else {
-				restr = string(*msg.ReturnData)
+				restr := string(*msg.ReturnData)
 				return restr
 			}
 		}
 	}
-	return ""
 }
-func (c *TCPClient) GetConnection() Connection {
-	return c.connection
+func (client *TCPClient) GetConnection() Connection {
+	return client.connection
 }
 func checkError(err error) {
 	if err != nil {
