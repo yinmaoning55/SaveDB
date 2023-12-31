@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 	"time"
+	"unsafe"
 )
 
 func Test1(t *testing.T) {
@@ -18,6 +19,41 @@ func Test1(t *testing.T) {
 	fmt.Println(buff[1:])
 	b := []byte("dsds")
 	fmt.Println(b)
+}
+func Test2(t *testing.T) {
+
+}
+
+type TestS struct {
+	name *string
+	num  int
+	maps map[string]string
+}
+
+func Test2Caches(t *testing.T) {
+	instan := &TestS{maps: make(map[string]string)}
+	go func(t *TestS) {
+		for i := 0; i < 10000000; i++ {
+			time.Sleep(time.Second)
+			t.num = i
+			str := fmt.Sprintf("%d %s", i, "name")
+			t.name = &str
+			t.maps[str] = str
+		}
+
+	}(instan)
+	go func(t *TestS) {
+		for i := 0; i < 10000000; i++ {
+			time.Sleep(time.Second)
+			fmt.Println(t.num)
+			if t.name == nil {
+				continue
+			}
+			fmt.Println(*t.name)
+			fmt.Println("map大小:", len(t.maps))
+		}
+	}(instan)
+	time.Sleep(time.Second * 1000000)
 }
 func TestChannel(t *testing.T) {
 	writer := make(chan int, 10)
@@ -39,4 +75,18 @@ func TestChannel(t *testing.T) {
 		}
 	}(writer)
 	time.Sleep(time.Second * 10000000)
+}
+
+type S struct {
+	A uint32
+	B uint64
+	C uint64
+	D uint64
+	E struct{}
+}
+
+func TestByte(t *testing.T) {
+	fmt.Println(unsafe.Offsetof(S{}.E))
+	fmt.Println(unsafe.Sizeof(S{}.E))
+	fmt.Println(unsafe.Sizeof(S{}))
 }

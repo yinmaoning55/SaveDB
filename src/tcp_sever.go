@@ -71,12 +71,12 @@ func (server *TCPServer) acceptConn(listener net.Listener) {
 }
 
 type Connection struct {
-	Conn   net.Conn
-	Read   chan *Message
-	Writer chan *Message
-	Close  *atomic.Bool
 	//连接的类型 1=client 2=集群中的其他实例 接收集群消息需要验证发送方的ip属不属于集群中的实例
 	Type       byte
+	Close      *atomic.Bool
+	Conn       net.Conn
+	Read       chan *Message
+	Writer     chan *Message
 	RemoteAddr net.Addr
 }
 type OnConnection interface {
