@@ -1,11 +1,8 @@
 package src
 
-import "errors"
-
-var (
-	ErrHashNotExist = errors.New("set not exist")
-
-	ErrHashMemberNotExist = errors.New("set member not exist")
+import (
+	"strconv"
+	"strings"
 )
 
 // Hash 基本上和set一样
@@ -19,68 +16,81 @@ func NewHash() *Hash {
 	return h
 }
 
-func (s *Hash) HmSet(key string, keys []string, records []*string) error {
-	hash, ok := s.M[key]
+func HmSet(db *saveDBTables, args []string) Result {
+	if len(args)%2 != 1 {
+		return CreateStrResult(C_ERR, "args number error")
+	}
+	key := args[0]
+	size := (len(args) - 1) / 2
+	fields := make([]string, size)
+	values := make([]string, size)
+	for i := 0; i < size; i++ {
+		fields[i] = args[2*i+1]
+		values[i] = args[2*i+2]
+	}
+
+	hash, ok := db.Hash.M[key]
 	if !ok {
-		s.M[key] = make(map[string]*string)
-		hash = s.M[key]
+		db.Hash.M[key] = make(map[string]*string)
+		hash = db.Hash.M[key]
 	}
-	for i, value := range keys {
-		hash[value] = records[i]
+	for i, value := range fields {
+		hash[value] = &values[i]
 	}
-	return nil
+	return CreateResult(C_OK, []byte(strconv.Itoa(len(values))))
 }
 
-func (s *Hash) HDel(key string, keys ...string) error {
-	hash, ok := s.M[key]
+func HDel(db *saveDBTables, args []string) Result {
+	hash, ok := db.Hash.M[args[0]]
 	if !ok {
-		return ErrHashNotExist
+		return CreateStrResult(C_ERR, "key inexistence")
 	}
 
-	if len(keys) == 0 || keys[0] == "" {
-		return ErrMemberEmpty
+	if len(args[1:]) == 0 || args[0] == "" {
+		return CreateStrResult(C_ERR, "key inexistence")
 	}
 
-	for _, value := range keys {
+	for _, value := range args[1:] {
 		delete(hash, value)
 	}
 
-	return nil
+	return CreateResult(C_OK, []byte(strconv.Itoa(len(args[1:]))))
 }
 
-func (s *Hash) HExists2(key, key2 string) bool {
-	if v, ok := s.M[key]; ok {
+func HExistsToFiled(db *saveDBTables, args []string) Result {
+	key1 := args[0]
+	key2 := args[1]
+	if v, ok := db.Hash.M[key1]; ok {
 		if _, ok := v[key2]; ok {
-			return true
+			return CreateResult(C_OK, nil)
 		}
 	}
-	return false
+	return CreateStrResult(C_ERR, "key inexistence")
 }
-func (s *Hash) HExists(key string) bool {
-	if _, ok := s.M[key]; ok {
-		return true
+func HExists(db *saveDBTables, args []string) Result {
+	if _, ok := db.Hash.M[args[0]]; ok {
+		return CreateResult(C_OK, nil)
 	}
-	return false
-}
-
-func (s *Hash) HCard(key string) int {
-	if !s.HExists(key) {
-		return 0
-	}
-
-	return len(s.M[key])
+	return CreateStrResult(C_ERR, "key inexistence")
 }
 
-func (s *Hash) HGetAll(key string) ([]*string, error) {
-	if _, ok := s.M[key]; !ok {
-		return nil, ErrHashNotExist
+func HCard(db *saveDBTables, args []string) Result {
+	if HExists(db, args).Status != C_OK {
+		return CreateStrResult(C_ERR, "key inexistence")
+	}
+	return CreateResult(C_OK, []byte(strconv.Itoa(len(db.Hash.M[args[0]]))))
+}
+
+func HGetAll(db *saveDBTables, args []string) Result {
+	if _, ok := db.Hash.M[args[0]]; !ok {
+		return CreateStrResult(C_ERR, "hash not exist")
 	}
 
-	records := make([]*string, 0)
+	records := make([]string, 0)
 
-	for _, record := range s.M[key] {
-		records = append(records, record)
+	for _, record := range db.Hash.M[args[0]] {
+		records = append(records, *record)
 	}
-
-	return records, nil
+	result := strings.Join(records, ",")
+	return CreateStrResult(C_OK, result)
 }

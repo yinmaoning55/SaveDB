@@ -3,6 +3,7 @@ package src
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -20,14 +21,13 @@ type TCPServer struct {
 	Close       atomic.Bool
 }
 
-var commandTables = []string{"get", "set"}
 var saveCommandMap map[string]saveDBCommand
 
 // 所有的命令 基本上和redis一样
 type saveDBCommand struct {
-	name            string                  //参数名字
-	saveCommandProc func(m *Message) string //执行的函数
-	arity           int                     //参数个数
+	name            string                                       //参数名字
+	saveCommandProc func(db *saveDBTables, args []string) Result //执行的函数
+	arity           int                                          //参数个数
 }
 
 func StartTCPServer(port int) error {
@@ -105,7 +105,11 @@ func (c *Connection) ReadMsg() {
 		buff1 := bufData[:MSG_BUFFER_OFFSET]
 		_, err := io.ReadFull(c.Conn, buff1)
 		if err != nil {
-			SaveDBLogger.Errorf("Read data error %v, conn=%v", err, c.Conn.RemoteAddr())
+			if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
+				SaveDBLogger.Infof("client close err %v, conn=%v", err, c.Conn.RemoteAddr())
+			} else {
+				SaveDBLogger.Errorf("Read data error %v, conn=%v", err, c.Conn.RemoteAddr())
+			}
 			return
 		}
 		var mlen int32
@@ -119,7 +123,7 @@ func (c *Connection) ReadMsg() {
 		//序列化指令格式为: command 参数1 参数2 参数3 ........
 		str := string(bufd)
 		if str == "" {
-			ReturnErr(C_ERR, c)
+			ReturnErr("command is null", c)
 			continue
 		}
 		words := strings.Fields(str)
@@ -131,19 +135,19 @@ func (c *Connection) ReadMsg() {
 		}
 		//非法格式直接返回错误
 		if !ok {
-			ReturnErr(C_ERR, c)
+			ReturnErr("command error", c)
 			continue
 		}
 		//非法参数长度直接返回错误
 		if len(words)-1 < com.arity {
-			ReturnErr(C_ERR, c)
+			ReturnErr("command error", c)
 			continue
 		}
 		args := words[1:]
 		msg := &Message{
 			Conn:    &c.Conn,
 			Command: &command,
-			Args:    &args,
+			Args:    args,
 		}
 		server.Read <- msg
 	}
@@ -176,7 +180,7 @@ func (c *Connection) WriterMsg() {
 type Message struct {
 	Conn       *net.Conn
 	Command    *string
-	Args       *[]string
+	Args       []string
 	ReturnData *[]byte
 }
 
@@ -197,18 +201,18 @@ func onMessage(conn *net.Conn) {
 	connection.WriterMsg()
 }
 
-func createWriterMsg(str string) *Message {
-	strBytes := []byte(str)
+func createWriterMsg(res Result) *Message {
 	// 创建一个带有长度前缀的字节数组
-	data := make([]byte, 4+len(strBytes))
+	data := make([]byte, 1+4+len(res.Res))
 	// 将长度写入前四个字节
-	binary.BigEndian.PutUint32(data[:4], uint32(len(strBytes)))
-	copy(data[4:], strBytes)
+	binary.BigEndian.PutUint32(data[:1], uint32(C_OK))
+	binary.BigEndian.PutUint32(data[1:4], uint32(len(res.Res)))
+	copy(data[4:], res.Res)
 	msg := &Message{ReturnData: &data}
 	return msg
 }
 func ReturnErr(str string, c *Connection) {
-	msg := createWriterMsg(C_ERR)
+	msg := createWriterMsg(CreateStrResult(C_ERR, str))
 	c.Writer <- msg
 }
 func createReadMsg() {
@@ -218,8 +222,8 @@ func createReadMsg() {
 var Config *serverConfig = &serverConfig{}
 
 type serverConfig struct {
-	Port int        `json:"port"`
-	Logs *LogConfig `json:"logs"`
+	Port int        `yaml:"port"`
+	Logs *LogConfig `yaml:"logs"`
 }
 
 func (config *serverConfig) LoadConfig(path string) {
@@ -267,15 +271,10 @@ func MainGoroutine() {
 				//逻辑处理
 				command := saveCommandMap[*msg.Command]
 				//写回
-				wMsg := createWriterMsg(command.saveCommandProc(msg))
+				wMsg := createWriterMsg(command.saveCommandProc(db, msg.Args))
 				TcpServer.Connections[*msg.Conn].Writer <- wMsg
 			}
 		}
 	}
 
-}
-func InitCommand() {
-	saveCommandMap = make(map[string]saveDBCommand)
-	saveCommandMap[commandTables[0]] = saveDBCommand{name: commandTables[0], saveCommandProc: getCommand, arity: 1}
-	saveCommandMap[commandTables[1]] = saveDBCommand{name: commandTables[1], saveCommandProc: setCommand, arity: 1}
 }

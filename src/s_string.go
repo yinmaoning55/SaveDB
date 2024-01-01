@@ -3,6 +3,7 @@ package src
 import (
 	"bytes"
 	"github.com/tidwall/btree"
+	"strings"
 )
 
 // 基本的key-value字符串类型使用b树实现
@@ -22,33 +23,38 @@ func NewString() *Str {
 	}
 }
 
-func (bt *Str) Get(key string) (string, bool) {
-	item, ok := bt.btree.Get(&Item{key: StringToBytes(key)})
+func Get(db *saveDBTables, args []string) Result {
+	key := args[0]
+	item, ok := db.Str.btree.Get(&Item{key: StringToBytes(key)})
 	if ok {
-		return BytesToString(item.value), ok
+		return CreateResult(C_OK, item.value)
 	}
-	return "", ok
+	return CreateResult(C_ERR, nil)
 }
 
-func (bt *Str) Set(key, value string) bool {
-	_, replaced := bt.btree.Set(&Item{key: StringToBytes(key), value: StringToBytes(value)})
-	return replaced
+func SetExc(db *saveDBTables, arg []string) Result {
+	db.Str.btree.Set(&Item{key: StringToBytes(arg[0]), value: StringToBytes(arg[1])})
+	return CreateResult(C_ERR, StringToBytes(OK_STR))
 }
 
-func (bt *Str) Delete(key string) bool {
-	_, deleted := bt.btree.Delete(&Item{key: StringToBytes(key)})
-	return deleted
+func Delete(db *saveDBTables, args []string) Result {
+	db.Str.btree.Delete(&Item{key: StringToBytes(args[0])})
+	return CreateResult(C_ERR, StringToBytes(OK_STR))
 }
 
-func (bt *Str) All() *map[string]string {
-	items := bt.btree.Items()
-
-	values := make(map[string]string, len(items))
-	for _, item := range items {
-		values[BytesToString(item.key)] = BytesToString(item.value)
+func All(db *saveDBTables, args []string) Result {
+	items := db.Str.btree.Items()
+	size := len(items)
+	var builder strings.Builder
+	for i, item := range items {
+		builder.Write(item.key)
+		builder.WriteString("=")
+		builder.Write(item.value)
+		if i+1 < size {
+			builder.WriteString(",")
+		}
 	}
-
-	return &values
+	return CreateResult(C_OK, StringToBytes(builder.String()))
 }
 
 //func (bt *Str) PrefixScan(prefix []byte, offset, limitNum int) []*Record {

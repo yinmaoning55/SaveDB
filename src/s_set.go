@@ -2,6 +2,8 @@ package src
 
 import (
 	"errors"
+	"strconv"
+	"strings"
 )
 
 // Set 表的实现直接使用go的map,在此之前需要了解go中的map基本机制
@@ -11,8 +13,6 @@ import (
 // 4、go中的hashcode是吧key的hashcode一分为二，其中低位区的值用于选定 bucket，高位区的值用于在某个 bucket 中确定 key 的位置
 var (
 	ErrSetNotExist = errors.New("set not exist")
-
-	ErrSetMemberNotExist = errors.New("set member not exist")
 
 	ErrMemberEmpty = errors.New("item empty")
 )
@@ -27,146 +27,156 @@ func NewSet() *Set {
 	return s
 }
 
-func (s *Set) SAdd(key string, values []string) (int, error) {
-	set, ok := s.M[key]
+func SAdd(db *saveDBTables, args []string) Result {
+	key := args[0]
+	set, ok := db.Set.M[key]
 	if !ok {
-		s.M[key] = make(map[string]*struct{})
-		set = s.M[key]
+		db.Set.M[key] = make(map[string]*struct{})
+		set = db.Set.M[key]
 	}
-	for _, value := range values {
+	for _, value := range args[1:] {
 		set[value] = &struct{}{}
 	}
-	return len(values), nil
+	return CreateStrResult(C_OK, strconv.Itoa(len(args[1:])))
 }
 
-func (s *Set) SMove(key string, values ...string) (int, error) {
-	set, ok := s.M[key]
+func SMove(db *saveDBTables, args []string) Result {
+	key := args[0]
+	set, ok := db.Set.M[key]
 	if !ok {
-		return -1, ErrSetNotExist
+		return CreateStrResult(C_ERR, "key inexistence")
 	}
-
+	values := args[1:]
 	if len(values) == 0 || values[0] == "" {
-		return -1, ErrMemberEmpty
+		return CreateStrResult(C_ERR, "value is null")
 	}
 
 	for _, value := range values {
 		delete(set, value)
 	}
+	return CreateStrResult(C_OK, strconv.Itoa(len(values)))
 
-	return len(values), nil
 }
 
-func (s *Set) SHasKey(key string) bool {
-	if _, ok := s.M[key]; ok {
-		return true
+func SHasKey(db *saveDBTables, args []string) Result {
+	key := args[0]
+	if _, ok := db.Set.M[key]; ok {
+		return CreateResult(C_OK, nil)
 	}
-	return false
+	return CreateResult(C_ERR, nil)
 }
 
-func (s *Set) SPop(key string) *string {
-	if !s.SHasKey(key) {
-		return nil
+func SPop(db *saveDBTables, args []string) Result {
+	key := args[0]
+	if SHasKey(db, args).Status != C_OK {
+		return CreateStrResult(C_ERR, "key inexistence")
 	}
 
-	for v, _ := range s.M[key] {
-		delete(s.M[key], v)
-		return &v
+	for v, _ := range db.Set.M[key] {
+		delete(db.Set.M[key], v)
+		return CreateStrResult(C_OK, v)
 	}
 
-	return nil
+	return CreateStrResult(C_ERR, "value inexistence")
 }
 
-func (s *Set) SCard(key string) int {
-	if !s.SHasKey(key) {
-		return 0
+func SCard(db *saveDBTables, args []string) Result {
+	key := args[0]
+	if SHasKey(db, args).Status != C_OK {
+		return CreateStrResult(C_ERR, "key inexistence")
 	}
-
-	return len(s.M[key])
+	return CreateStrResult(C_OK, strconv.Itoa(len(db.Set.M[key])))
 }
 
-func (s *Set) SDiff(key1, key2 string) ([]*string, error) {
-	if !s.SHasKey(key1) || !s.SHasKey(key2) {
-		return nil, ErrSetNotExist
+func SDiff(db *saveDBTables, args []string) Result {
+	if (SHasKey(db, args[:1]).Status != C_OK) || (SHasKey(db, args[1:]).Status != C_OK) {
+		return CreateStrResult(C_ERR, "set not exist")
 	}
-
-	records := make([]*string, 0)
-
-	for v, _ := range s.M[key1] {
-		if _, ok := s.M[key2][v]; !ok {
-			records = append(records, &v)
+	records := make([]string, 0)
+	key1 := args[0]
+	key2 := args[1]
+	for v, _ := range db.Set.M[key1] {
+		if _, ok := db.Set.M[key2][v]; !ok {
+			records = append(records, v)
 		}
 	}
-	return records, nil
+	result := strings.Join(records, ",")
+	return CreateStrResult(C_OK, result)
 }
 
-func (s *Set) SInter(key1, key2 string) ([]*string, error) {
-	if !s.SHasKey(key1) || !s.SHasKey(key2) {
-		return nil, ErrSetNotExist
+func SInter(db *saveDBTables, args []string) Result {
+	if SHasKey(db, args[:1]).Status != C_OK || SHasKey(db, args[1:]).Status != C_OK {
+		return CreateStrResult(C_ERR, "set not exist")
 	}
-
-	records := make([]*string, 0)
-
-	for v, _ := range s.M[key1] {
-		if _, ok := s.M[key2][v]; ok {
-			records = append(records, &v)
+	key1 := args[0]
+	key2 := args[1]
+	values := make([]string, 0)
+	for v, _ := range db.Hash.M[key1] {
+		if _, ok := db.Hash.M[key2][v]; ok {
+			values = append(values, v)
 		}
 	}
-	return records, nil
+	result := strings.Join(values, ", ")
+	return CreateStrResult(C_OK, result)
 }
 
-func (s *Set) SIsMember(key string, value string) (bool, error) {
-	if _, ok := s.M[key]; !ok {
-		return false, ErrSetNotExist
+func SIsMember(db *saveDBTables, args []string) Result {
+	key := args[0]
+	if _, ok := db.Set.M[key]; !ok {
+		return CreateStrResult(C_ERR, "set not exist")
+	}
+	value := args[1]
+	if _, ok := db.Set.M[key][value]; ok {
+		return CreateResult(C_OK, nil)
 	}
 
-	if _, ok := s.M[key][value]; ok {
-		return true, nil
-	}
-
-	return false, nil
+	return CreateStrResult(C_ERR, "set not exist")
 }
 
-func (s *Set) SAreMembers(key string, values ...string) (bool, error) {
-	if _, ok := s.M[key]; !ok {
-		return false, ErrSetNotExist
+func SAreMembers(db *saveDBTables, args []string) Result {
+	key := args[0]
+	if _, ok := db.Set.M[key]; !ok {
+		return CreateStrResult(C_ERR, "set not exist")
 	}
-
+	values := args[1:]
 	for _, value := range values {
-		if _, ok := s.M[key][value]; !ok {
-			return false, nil
+		if _, ok := db.Set.M[key][value]; !ok {
+			return CreateStrResult(C_ERR, "set not exist")
 		}
 	}
-
-	return true, nil
+	return CreateResult(C_OK, nil)
 }
 
-func (s *Set) SMembers(key string) ([]*string, error) {
-	if _, ok := s.M[key]; !ok {
-		return nil, ErrSetNotExist
+func SMembers(db *saveDBTables, args []string) Result {
+	key := args[0]
+	if _, ok := db.Set.M[key]; !ok {
+		return CreateStrResult(C_ERR, "set not exist")
 	}
-	records := make([]*string, 0)
-	for k, _ := range s.M[key] {
-		records = append(records, &k)
+	records := make([]string, 0)
+	for k, _ := range db.Set.M[key] {
+		records = append(records, k)
 	}
-	return records, nil
+	result := strings.Join(records, ",")
+	return CreateStrResult(C_OK, result)
 }
 
-func (s *Set) SUnion(key1, key2 string) ([]*string, error) {
-	if !s.SHasKey(key1) || !s.SHasKey(key2) {
-		return nil, ErrSetNotExist
+func SUnion(db *saveDBTables, args []string) Result {
+	if SHasKey(db, args[:1]).Status != C_OK || SHasKey(db, args[1:]).Status != C_OK {
+		return CreateStrResult(C_ERR, "set not exist")
 	}
 
-	records, err := s.SMembers(key1)
-
-	if err != nil {
-		return nil, err
+	key1 := args[0]
+	key2 := args[1]
+	record1s := make([]string, 0)
+	for k, _ := range db.Set.M[key1] {
+		record1s = append(record1s, k)
 	}
-
-	for v, _ := range s.M[key2] {
-		if _, ok := s.M[key1][v]; !ok {
-			records = append(records, &v)
+	record2s := make([]string, 0)
+	for v, _ := range db.Set.M[key2] {
+		if _, ok := db.Set.M[key1][v]; !ok {
+			record2s = append(record2s, v)
 		}
 	}
-
-	return records, nil
+	result := strings.Join(record2s, ",")
+	return CreateStrResult(C_OK, result)
 }
