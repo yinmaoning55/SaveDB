@@ -9,9 +9,10 @@ var db = &saveDBTables{}
 
 // 全局大表
 type saveDBTables struct {
-	Str     Str
-	Hash    Hash
-	Set     Set
+	Str
+	Hash
+	Set
+	List
 	Expires map[string]uint64 //带有过期的key统一管理
 	AllKeys allKeys           //缓存淘汰
 }
@@ -35,6 +36,7 @@ func CreateSaveDB() {
 	db.Expires = make(map[string]uint64)
 	db.Set = *NewSet()
 	db.Hash = *NewHash()
+	db.List = *NewList()
 	db.AllKeys = allKeys{
 		btree: btree.NewBTreeG[*keyItem](func(a, b *keyItem) bool {
 			return bytes.Compare(a.key, b.key) == -1
@@ -42,34 +44,42 @@ func CreateSaveDB() {
 	}
 }
 
-var commandTables = []string{
-	"get", "set", "delete",
-	"hmset", "hdel", "hexiststofiled", "hexists", "hcard", "hgetall",
-	"sadd", "smove", "shaskey", "spop", "scard", "sdiff", "sinter", "sismember", "saremembers", "smembers", "sunion",
-}
-
 func InitCommand() {
 	saveCommandMap = make(map[string]saveDBCommand)
-	saveCommandMap[commandTables[0]] = saveDBCommand{name: commandTables[0], saveCommandProc: Get, arity: 1}
-	saveCommandMap[commandTables[1]] = saveDBCommand{name: commandTables[1], saveCommandProc: SetExc, arity: 1}
-	saveCommandMap[commandTables[3]] = saveDBCommand{name: commandTables[2], saveCommandProc: Delete, arity: 1}
+	saveCommandMap["get"] = saveDBCommand{name: "get", saveCommandProc: Get, arity: 1}
+	saveCommandMap["set"] = saveDBCommand{name: "set", saveCommandProc: SetExc, arity: 1}
+	saveCommandMap["delete"] = saveDBCommand{name: "delete", saveCommandProc: Delete, arity: 1}
 
-	saveCommandMap[commandTables[4]] = saveDBCommand{name: commandTables[3], saveCommandProc: HmSet, arity: -1}
-	saveCommandMap[commandTables[5]] = saveDBCommand{name: commandTables[4], saveCommandProc: HDel, arity: -1}
-	saveCommandMap[commandTables[6]] = saveDBCommand{name: commandTables[5], saveCommandProc: HExistsToFiled, arity: 2}
-	saveCommandMap[commandTables[7]] = saveDBCommand{name: commandTables[6], saveCommandProc: HExists, arity: 1}
-	saveCommandMap[commandTables[8]] = saveDBCommand{name: commandTables[7], saveCommandProc: HCard, arity: 1}
-	saveCommandMap[commandTables[9]] = saveDBCommand{name: commandTables[8], saveCommandProc: HGetAll, arity: 1}
+	saveCommandMap["hmset"] = saveDBCommand{name: "hmset", saveCommandProc: HmSet, arity: -1}
+	saveCommandMap["hdel"] = saveDBCommand{name: "hdel", saveCommandProc: HDel, arity: -1}
+	saveCommandMap["hexiststofiled"] = saveDBCommand{name: "hexiststofiled", saveCommandProc: HExistsToFiled, arity: 2}
+	saveCommandMap["hexists"] = saveDBCommand{name: "hexists", saveCommandProc: HExists, arity: 1}
+	saveCommandMap["hcard"] = saveDBCommand{name: "hcard", saveCommandProc: HCard, arity: 1}
+	saveCommandMap["hgetall"] = saveDBCommand{name: "hgetall", saveCommandProc: HGetAll, arity: 1}
 
-	saveCommandMap[commandTables[10]] = saveDBCommand{name: commandTables[9], saveCommandProc: SAdd, arity: -1}
-	saveCommandMap[commandTables[11]] = saveDBCommand{name: commandTables[10], saveCommandProc: SMove, arity: -1}
-	saveCommandMap[commandTables[12]] = saveDBCommand{name: commandTables[11], saveCommandProc: SHasKey, arity: 1}
-	saveCommandMap[commandTables[13]] = saveDBCommand{name: commandTables[12], saveCommandProc: SPop, arity: 1}
-	saveCommandMap[commandTables[14]] = saveDBCommand{name: commandTables[13], saveCommandProc: SCard, arity: 1}
-	saveCommandMap[commandTables[15]] = saveDBCommand{name: commandTables[14], saveCommandProc: SDiff, arity: 2}
-	saveCommandMap[commandTables[16]] = saveDBCommand{name: commandTables[15], saveCommandProc: SInter, arity: 2}
-	saveCommandMap[commandTables[17]] = saveDBCommand{name: commandTables[16], saveCommandProc: SIsMember, arity: 2}
-	saveCommandMap[commandTables[18]] = saveDBCommand{name: commandTables[17], saveCommandProc: SAreMembers, arity: -1}
-	saveCommandMap[commandTables[19]] = saveDBCommand{name: commandTables[18], saveCommandProc: SMembers, arity: 1}
-	saveCommandMap[commandTables[19]] = saveDBCommand{name: commandTables[19], saveCommandProc: SUnion, arity: 2}
+	saveCommandMap["sadd"] = saveDBCommand{name: "sadd", saveCommandProc: SAdd, arity: -1}
+	saveCommandMap["smove"] = saveDBCommand{name: "smove", saveCommandProc: SMove, arity: -1}
+	saveCommandMap["shaskey"] = saveDBCommand{name: "shaskey", saveCommandProc: SHasKey, arity: 1}
+	saveCommandMap["spop"] = saveDBCommand{name: "spop", saveCommandProc: SPop, arity: 1}
+	saveCommandMap["scard"] = saveDBCommand{name: "scard", saveCommandProc: SCard, arity: 1}
+	saveCommandMap["sdiff"] = saveDBCommand{name: "sdiff", saveCommandProc: SDiff, arity: 2}
+	saveCommandMap["sinter"] = saveDBCommand{name: "sinter", saveCommandProc: SInter, arity: 2}
+	saveCommandMap["sismember"] = saveDBCommand{name: "sismember", saveCommandProc: SIsMember, arity: 2}
+	saveCommandMap["saremembers"] = saveDBCommand{name: "saremembers", saveCommandProc: SAreMembers, arity: -1}
+	saveCommandMap["smembers"] = saveDBCommand{name: "smembers", saveCommandProc: SMembers, arity: 1}
+	saveCommandMap["sunion"] = saveDBCommand{name: "sunion", saveCommandProc: SUnion, arity: 2}
+
+	saveCommandMap["llen"] = saveDBCommand{name: "llen", saveCommandProc: LLen, arity: 2}
+	saveCommandMap["lpop"] = saveDBCommand{name: "lpop", saveCommandProc: LPop, arity: 2}
+	saveCommandMap["lpush"] = saveDBCommand{name: "lpush", saveCommandProc: LPush, arity: 2}
+	saveCommandMap["lpushx"] = saveDBCommand{name: "lpushx", saveCommandProc: LPushX, arity: 2}
+	saveCommandMap["lrange"] = saveDBCommand{name: "lrange", saveCommandProc: LRange, arity: 2}
+	saveCommandMap["lrem"] = saveDBCommand{name: "lrem", saveCommandProc: LRem, arity: 2}
+	saveCommandMap["lset"] = saveDBCommand{name: "lset", saveCommandProc: LSet, arity: 2}
+	saveCommandMap["rpop"] = saveDBCommand{name: "rpop", saveCommandProc: RPop, arity: 2}
+	saveCommandMap["rpoplpush"] = saveDBCommand{name: "rpoplpush", saveCommandProc: RPopLPush, arity: 2}
+	saveCommandMap["rpush"] = saveDBCommand{name: "rpush", saveCommandProc: RPush, arity: 2}
+	saveCommandMap["rpushx"] = saveDBCommand{name: "rpushx", saveCommandProc: RPushX, arity: 2}
+	saveCommandMap["ltrim"] = saveDBCommand{name: "ltrim", saveCommandProc: LTrim, arity: 2}
+	saveCommandMap["linsert"] = saveDBCommand{name: "linsert", saveCommandProc: LInsert, arity: 2}
 }

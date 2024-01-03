@@ -1,6 +1,7 @@
 package src
 
 import (
+	"encoding/binary"
 	"fmt"
 	"testing"
 	"time"
@@ -15,10 +16,7 @@ func Test1(t *testing.T) {
 	buff[3] = 3
 	buff[4] = 4
 	buff[5] = 5
-	fmt.Println(buff)
-	fmt.Println(buff[1:])
-	b := []byte("dsds")
-	fmt.Println(b)
+	fmt.Println(buff[2:6])
 }
 func Test2(t *testing.T) {
 
@@ -89,4 +87,12 @@ func TestByte(t *testing.T) {
 	fmt.Println(unsafe.Offsetof(S{}.E))
 	fmt.Println(unsafe.Sizeof(S{}.E))
 	fmt.Println(unsafe.Sizeof(S{}))
+}
+func TestByte2(t *testing.T) {
+	str := "1"
+	data := make([]byte, len([]byte(str))+2+4)
+	binary.BigEndian.PutUint16(data[:2], C_OK)
+	binary.BigEndian.PutUint32(data[2:6], uint32(len([]byte(str))))
+	copy(data[6:], str)
+	fmt.Println(data)
 }

@@ -29,17 +29,17 @@ func Get(db *saveDBTables, args []string) Result {
 	if ok {
 		return CreateResult(C_OK, item.value)
 	}
-	return CreateResult(C_ERR, nil)
+	return CreateStrResult(C_ERR, "key is exist")
 }
 
 func SetExc(db *saveDBTables, arg []string) Result {
 	db.Str.btree.Set(&Item{key: StringToBytes(arg[0]), value: StringToBytes(arg[1])})
-	return CreateResult(C_ERR, StringToBytes(OK_STR))
+	return CreateResult(C_OK, StringToBytes(OK_STR))
 }
 
 func Delete(db *saveDBTables, args []string) Result {
 	db.Str.btree.Delete(&Item{key: StringToBytes(args[0])})
-	return CreateResult(C_ERR, StringToBytes(OK_STR))
+	return CreateResult(C_OK, StringToBytes(OK_STR))
 }
 
 func All(db *saveDBTables, args []string) Result {

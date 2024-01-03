@@ -2,6 +2,7 @@ package src
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -34,13 +35,13 @@ func StartClient(ip string, port int) *TCPClient {
 		checkError(err)
 		fmt.Println(conn.LocalAddr().String(), "<->", address, " conn successful.")
 		client.connection.Conn = conn
-		go handleClienRead(conn, client)
+		go handleClientRead(conn, client)
 		go handleClientWrite(&connection, conn)
 	}()
 
 	return client
 }
-func handleClienRead(con net.Conn, client *TCPClient) {
+func handleClientRead(con net.Conn, client *TCPClient) {
 	defer func() {
 		if !client.connection.Close.Load() {
 			client.connection.Close.Store(true)
@@ -51,22 +52,19 @@ func handleClienRead(con net.Conn, client *TCPClient) {
 	}()
 	for {
 		buf := make([]byte, 65535)
-		buff1 := buf[:MSG_BUFFER_OFFSET]
-		_, err := io.ReadFull(con, buff1)
+		buf1 := buf[:6]
+		_, err := io.ReadFull(con, buf1)
 		if err != nil {
 			fmt.Println("time=  Read head error=", time.Now(), err)
 			return
 		}
-
-		var mlen int32
-		mlen = ReadInt(buf[:MSG_BUFFER_OFFSET])
-		bufd := buf[MSG_BUFFER_OFFSET : mlen+MSG_BUFFER_OFFSET]
-		_, err = io.ReadFull(con, bufd)
+		length := ReadInt(buf[2:6])
+		_, err = io.ReadFull(con, buf1[6:6+length])
 		if err != nil {
-			fmt.Println("Read data error")
+			fmt.Println("time=  Read head error=", time.Now(), err)
 			return
 		}
-		msg := &Message{ReturnData: &bufd}
+		msg := &Message{ReturnData: &buf}
 		client.connection.Read <- msg
 	}
 
@@ -108,8 +106,18 @@ func (client *TCPClient) SendMsg(str string) string {
 				//主动关闭链接了
 				return "Connection close"
 			} else {
-				restr := string(*msg.ReturnData)
-				return restr
+				m := *msg.ReturnData
+				status := Read2Byte(m[:2])
+				len := ReadInt(m[2:6])
+				restr := string(m[6 : 6+len])
+				data := make(map[string]interface{})
+				data["status"] = status
+				data["msg"] = restr
+				res, err := json.MarshalIndent(data, "", "\t")
+				if err != nil {
+					panic(err)
+				}
+				return string(res)
 			}
 		}
 	}

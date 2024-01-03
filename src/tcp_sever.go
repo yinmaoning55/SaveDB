@@ -203,11 +203,11 @@ func onMessage(conn *net.Conn) {
 
 func createWriterMsg(res Result) *Message {
 	// 创建一个带有长度前缀的字节数组
-	data := make([]byte, 1+4+len(res.Res))
+	data := make([]byte, 2+4+len(res.Res))
 	// 将长度写入前四个字节
-	binary.BigEndian.PutUint32(data[:1], uint32(C_OK))
-	binary.BigEndian.PutUint32(data[1:4], uint32(len(res.Res)))
-	copy(data[4:], res.Res)
+	binary.BigEndian.PutUint16(data[:2], uint16(res.Status))
+	binary.BigEndian.PutUint32(data[2:6], uint32(len(res.Res)))
+	copy(data[6:], res.Res)
 	msg := &Message{ReturnData: &data}
 	return msg
 }
@@ -249,6 +249,10 @@ type saveServer struct {
 func ReadInt(bs []byte) int32 {
 	u := binary.BigEndian.Uint32(bs)
 	return int32(u)
+}
+func Read2Byte(bs []byte) int16 {
+	u := binary.BigEndian.Uint16(bs)
+	return int16(u)
 }
 func writeInt32(bs []byte, pos int, v int32) {
 	binary.BigEndian.PutUint32(bs[pos:], uint32(v))
