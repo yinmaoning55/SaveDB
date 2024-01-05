@@ -40,6 +40,22 @@ func HmSet(db *saveDBTables, args []string) Result {
 	return CreateResult(C_OK, []byte(strconv.Itoa(len(values))))
 }
 
+func HMGet(db *saveDBTables, args []string) Result {
+	key := args[0]
+	key2 := args[1]
+	// get entity
+	dict, ok := db.Hash.M[key]
+	if ok {
+		return CreateStrResult(C_ERR, "key not exist")
+	}
+	value, ok := dict[key2]
+	if !ok {
+		return CreateStrResult(C_ERR, "key2 not exist")
+	}
+
+	return CreateStrResult(C_OK, *value)
+}
+
 func HDel(db *saveDBTables, args []string) Result {
 	hash, ok := db.Hash.M[args[0]]
 	if !ok {
@@ -87,10 +103,18 @@ func HGetAll(db *saveDBTables, args []string) Result {
 	}
 
 	records := make([]string, 0)
-
-	for _, record := range db.Hash.M[args[0]] {
+	var builder strings.Builder
+	var index = 0
+	var size = len(db.Hash.M[args[0]])
+	for k, record := range db.Hash.M[args[0]] {
 		records = append(records, *record)
+		builder.WriteString(k)
+		builder.WriteString("=")
+		builder.WriteString(*record)
+		if index < size-1 {
+			builder.WriteString(",")
+		}
+		index++
 	}
-	result := strings.Join(records, ",")
-	return CreateStrResult(C_OK, result)
+	return CreateStrResult(C_OK, builder.String())
 }

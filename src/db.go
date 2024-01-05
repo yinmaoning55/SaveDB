@@ -47,10 +47,11 @@ func CreateSaveDB() {
 func InitCommand() {
 	saveCommandMap = make(map[string]saveDBCommand)
 	saveCommandMap["get"] = saveDBCommand{name: "get", saveCommandProc: Get, arity: 1}
-	saveCommandMap["set"] = saveDBCommand{name: "set", saveCommandProc: SetExc, arity: 1}
+	saveCommandMap["set"] = saveDBCommand{name: "set", saveCommandProc: SetExc, arity: 2}
 	saveCommandMap["delete"] = saveDBCommand{name: "delete", saveCommandProc: Delete, arity: 1}
 
 	saveCommandMap["hmset"] = saveDBCommand{name: "hmset", saveCommandProc: HmSet, arity: -1}
+	saveCommandMap["hget"] = saveDBCommand{name: "hget", saveCommandProc: HMGet, arity: 2}
 	saveCommandMap["hdel"] = saveDBCommand{name: "hdel", saveCommandProc: HDel, arity: -1}
 	saveCommandMap["hexiststofiled"] = saveDBCommand{name: "hexiststofiled", saveCommandProc: HExistsToFiled, arity: 2}
 	saveCommandMap["hexists"] = saveDBCommand{name: "hexists", saveCommandProc: HExists, arity: 1}
@@ -69,17 +70,17 @@ func InitCommand() {
 	saveCommandMap["smembers"] = saveDBCommand{name: "smembers", saveCommandProc: SMembers, arity: 1}
 	saveCommandMap["sunion"] = saveDBCommand{name: "sunion", saveCommandProc: SUnion, arity: 2}
 
-	saveCommandMap["llen"] = saveDBCommand{name: "llen", saveCommandProc: LLen, arity: 2}
-	saveCommandMap["lpop"] = saveDBCommand{name: "lpop", saveCommandProc: LPop, arity: 2}
+	saveCommandMap["llen"] = saveDBCommand{name: "llen", saveCommandProc: LLen, arity: 1}
+	saveCommandMap["lpop"] = saveDBCommand{name: "lpop", saveCommandProc: LPop, arity: 1}
 	saveCommandMap["lpush"] = saveDBCommand{name: "lpush", saveCommandProc: LPush, arity: 2}
 	saveCommandMap["lpushx"] = saveDBCommand{name: "lpushx", saveCommandProc: LPushX, arity: 2}
-	saveCommandMap["lrange"] = saveDBCommand{name: "lrange", saveCommandProc: LRange, arity: 2}
-	saveCommandMap["lrem"] = saveDBCommand{name: "lrem", saveCommandProc: LRem, arity: 2}
-	saveCommandMap["lset"] = saveDBCommand{name: "lset", saveCommandProc: LSet, arity: 2}
-	saveCommandMap["rpop"] = saveDBCommand{name: "rpop", saveCommandProc: RPop, arity: 2}
+	saveCommandMap["lrange"] = saveDBCommand{name: "lrange", saveCommandProc: LRange, arity: 3}
+	saveCommandMap["lrem"] = saveDBCommand{name: "lrem", saveCommandProc: LRem, arity: 3}
+	saveCommandMap["lset"] = saveDBCommand{name: "lset", saveCommandProc: LSet, arity: 3}
+	saveCommandMap["rpop"] = saveDBCommand{name: "rpop", saveCommandProc: RPop, arity: 1}
 	saveCommandMap["rpoplpush"] = saveDBCommand{name: "rpoplpush", saveCommandProc: RPopLPush, arity: 2}
-	saveCommandMap["rpush"] = saveDBCommand{name: "rpush", saveCommandProc: RPush, arity: 2}
-	saveCommandMap["rpushx"] = saveDBCommand{name: "rpushx", saveCommandProc: RPushX, arity: 2}
-	saveCommandMap["ltrim"] = saveDBCommand{name: "ltrim", saveCommandProc: LTrim, arity: 2}
-	saveCommandMap["linsert"] = saveDBCommand{name: "linsert", saveCommandProc: LInsert, arity: 2}
+	saveCommandMap["rpush"] = saveDBCommand{name: "rpush", saveCommandProc: RPush, arity: -1}
+	saveCommandMap["rpushx"] = saveDBCommand{name: "rpushx", saveCommandProc: RPushX, arity: -1}
+	saveCommandMap["ltrim"] = saveDBCommand{name: "ltrim", saveCommandProc: LTrim, arity: 3}
+	saveCommandMap["linsert"] = saveDBCommand{name: "linsert", saveCommandProc: LInsert, arity: 4}
 }

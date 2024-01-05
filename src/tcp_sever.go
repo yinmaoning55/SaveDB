@@ -260,7 +260,7 @@ func writeInt32(bs []byte, pos int, v int32) {
 func MainGoroutine() {
 	defer func() {
 		if e := recover(); e != nil {
-			fmt.Println("recover the panic:", e)
+			SaveDBLogger.Errorf("recover the panic:", e)
 		}
 	}()
 	for {
