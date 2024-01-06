@@ -18,6 +18,11 @@ func CreateResult(status byte, res []byte) Result {
 	}
 	return Result{Status: status, Res: res}
 }
+func CreateIntResult(status byte, i int64) Result {
+	res := make([]byte, 0)
+	writeInt64(res, 0, i)
+	return Result{Status: status, Res: res}
+}
 func CreateStrResult(status byte, res string) Result {
 	var b []byte
 	if res == "" {

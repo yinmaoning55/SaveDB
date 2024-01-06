@@ -13,6 +13,7 @@ type saveDBTables struct {
 	Hash
 	Set
 	List
+	ZSet
 	Expires map[string]uint64 //带有过期的key统一管理
 	AllKeys allKeys           //缓存淘汰
 }
@@ -37,6 +38,7 @@ func CreateSaveDB() {
 	db.Set = *NewSet()
 	db.Hash = *NewHash()
 	db.List = *NewList()
+	db.ZSet = *NewZSet()
 	db.AllKeys = allKeys{
 		btree: btree.NewBTreeG[*keyItem](func(a, b *keyItem) bool {
 			return bytes.Compare(a.key, b.key) == -1

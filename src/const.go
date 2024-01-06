@@ -12,4 +12,8 @@ const (
 	TypeSet           = 3
 	TypeZSet          = 4
 	TypeList          = 5
+
+	//和redis6.0一样
+	ZSKIPLIST_MAXLEVEL = 32
+	ZSKIPLIST_P        = 0.25
 )

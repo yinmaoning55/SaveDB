@@ -257,6 +257,9 @@ func Read2Byte(bs []byte) int16 {
 func writeInt32(bs []byte, pos int, v int32) {
 	binary.BigEndian.PutUint32(bs[pos:], uint32(v))
 }
+func writeInt64(bs []byte, pos int, v int64) {
+	binary.BigEndian.PutUint64(bs[pos:], uint64(v))
+}
 func MainGoroutine() {
 	defer func() {
 		if e := recover(); e != nil {
