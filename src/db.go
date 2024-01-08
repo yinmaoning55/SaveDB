@@ -47,6 +47,8 @@ func InitCommand() {
 	saveCommandMap["set"] = saveDBCommand{name: "set", saveCommandProc: SetExc, arity: 2}
 	saveCommandMap["delete"] = saveDBCommand{name: "delete", saveCommandProc: Delete, arity: 1}
 
+	saveCommandMap["keys"] = saveDBCommand{name: "keys", saveCommandProc: Keys, arity: 1}
+
 	saveCommandMap["hmset"] = saveDBCommand{name: "hmset", saveCommandProc: HmSet, arity: -1}
 	saveCommandMap["hget"] = saveDBCommand{name: "hget", saveCommandProc: HMGet, arity: 2}
 	saveCommandMap["hdel"] = saveDBCommand{name: "hdel", saveCommandProc: HDel, arity: -1}

@@ -3,7 +3,9 @@ package src
 import (
 	"bytes"
 	"github.com/tidwall/btree"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -61,7 +63,7 @@ func TTL(db *saveDBTables, args []string) Result {
 func Delete(db *saveDBTables, args []string) Result {
 	key := args[0]
 	if !db.AllKeys.Exist(key) {
-		return CreateStrResult(C_ERR, "key is exist")
+		return CreateStrResult(C_ERR, "key not exist")
 	}
 	keyType := db.AllKeys.GetKey(key).dataType
 	switch keyType {
@@ -84,6 +86,33 @@ func Delete(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, OK_STR)
 }
 
+func Keys(db *saveDBTables, args []string) Result {
+	pattern := strings.ReplaceAll(args[0], "*", ".*")
+	var matchingKeys []string
+	re := regexp.MustCompile(pattern)
+	iter := db.AllKeys.keys.Iter()
+	for ok := iter.First(); ok; ok = iter.Next() {
+		key := string(iter.Item().key)
+		if re.MatchString(key) {
+			matchingKeys = append(matchingKeys, key)
+		}
+	}
+	res := strings.Join(matchingKeys, ",")
+	return CreateStrResult(C_OK, res)
+}
+func findMatchingKeys(inputMap map[string]string, pattern string) []string {
+	pattern = strings.ReplaceAll(pattern, "*", ".*")
+	var matchingKeys []string
+	re := regexp.MustCompile(pattern)
+
+	for key := range inputMap {
+		if re.MatchString(key) {
+			matchingKeys = append(matchingKeys, key)
+		}
+	}
+
+	return matchingKeys
+}
 func (a *AllKeys) PutKey(key string, keyType byte) {
 	ki := &keyItem{
 		key:     StringToBytes(key),

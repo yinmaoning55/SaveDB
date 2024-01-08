@@ -202,7 +202,7 @@ func LSet(db *saveDBTables, args []string) Result {
 	}
 
 	list.Set(index, value)
-
+	db.AllKeys.PutKey(key, TypeList)
 	return CreateResult(C_OK, nil)
 }
 

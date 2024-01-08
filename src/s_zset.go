@@ -52,6 +52,8 @@ func ZAdd(db *saveDBTables, args []string) Result {
 
 	//aof
 
+	//添加全局key
+	db.AllKeys.PutKey(key, TypeZSet)
 	return CreateStrResult(C_OK, strconv.Itoa(i))
 }
 
@@ -68,7 +70,7 @@ func ZScore(db *saveDBTables, args []string) Result {
 
 	element, exists := sortedSet.Get(member)
 	if !exists {
-		return CreateStrResult(C_ERR, "zSet key is exists")
+		return CreateStrResult(C_ERR, "zSet key not exists")
 	}
 	value := strconv.FormatFloat(element.Score, 'f', -1, 64)
 	return CreateStrResult(C_OK, value)

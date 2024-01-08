@@ -37,6 +37,7 @@ func SAdd(db *saveDBTables, args []string) Result {
 	for _, value := range args[1:] {
 		set[value] = &struct{}{}
 	}
+	db.AllKeys.PutKey(key, TypeSet)
 	return CreateStrResult(C_OK, strconv.Itoa(len(args[1:])))
 }
 

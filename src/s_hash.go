@@ -37,6 +37,7 @@ func HmSet(db *saveDBTables, args []string) Result {
 	for i, value := range fields {
 		hash[value] = &values[i]
 	}
+	db.AllKeys.PutKey(key, TypeHash)
 	return CreateResult(C_OK, []byte(strconv.Itoa(len(values))))
 }
 

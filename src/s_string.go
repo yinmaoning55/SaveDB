@@ -30,7 +30,7 @@ func Get(db *saveDBTables, args []string) Result {
 		db.AllKeys.ActivateKey(args[0])
 		return CreateResult(C_OK, item.value)
 	}
-	return CreateStrResult(C_ERR, "key is exist")
+	return CreateStrResult(C_ERR, "key not exist")
 }
 
 func SetExc(db *saveDBTables, arg []string) Result {
