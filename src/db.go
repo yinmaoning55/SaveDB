@@ -1,8 +1,7 @@
 package src
 
 import (
-	"bytes"
-	"github.com/tidwall/btree"
+	"time"
 )
 
 var db = &saveDBTables{}
@@ -14,38 +13,34 @@ type saveDBTables struct {
 	Set
 	List
 	ZSet
-	Expires map[string]uint64 //带有过期的key统一管理
-	AllKeys allKeys           //缓存淘汰
+	Expires map[string]time.Time //带有过期的key统一管理
+	AllKeys                      //缓存淘汰
 }
-type saveObject struct {
+type SaveObject struct {
 	dataType byte    //key的数据类型
-	lru      uint32  //redisObject的LRU时间，LRU_BITS为24个bits
-	refCount int     //redisObject的引用计数，4个字节
+	lru      int64   //redisObject的LRU时间， 毫秒
+	refCount int16   //redisObject的引用计数
 	prt      *string //指向值的指针，8个字节
 
-}
-type allKeys struct {
-	btree *btree.BTreeG[*keyItem]
-}
-type keyItem struct {
-	key     []byte
-	saveObj *saveObject
 }
 
 func CreateSaveDB() {
 	db.Str = *NewString()
-	db.Expires = make(map[string]uint64)
+	db.Expires = make(map[string]time.Time)
 	db.Set = *NewSet()
 	db.Hash = *NewHash()
 	db.List = *NewList()
 	db.ZSet = *NewZSet()
-	db.AllKeys = allKeys{
-		btree: btree.NewBTreeG[*keyItem](func(a, b *keyItem) bool {
-			return bytes.Compare(a.key, b.key) == -1
-		}),
-	}
+	db.AllKeys = NewLKeys()
 }
-
+func NewSaveObject(key *string, keyType byte) *SaveObject {
+	o := &SaveObject{
+		dataType: keyType,
+		lru:      time.Now().Unix(),
+		prt:      key,
+	}
+	return o
+}
 func InitCommand() {
 	saveCommandMap = make(map[string]saveDBCommand)
 	saveCommandMap["get"] = saveDBCommand{name: "get", saveCommandProc: Get, arity: 1}
@@ -104,5 +99,8 @@ func InitCommand() {
 	saveCommandMap["zrangebylex"] = saveDBCommand{name: "zrangebylex", saveCommandProc: ZRangeByLex, arity: -1}
 	saveCommandMap["zremrangebylex"] = saveDBCommand{name: "zremrangebylex", saveCommandProc: ZRemRangeByLex, arity: 3}
 	saveCommandMap["zrevrangebylex"] = saveDBCommand{name: "zrevrangebylex", saveCommandProc: ZRevRangeByLex, arity: -1}
+
+	saveCommandMap["expire"] = saveDBCommand{name: "expire", saveCommandProc: Expire, arity: 2}
+	saveCommandMap["ttl"] = saveDBCommand{name: "ttl", saveCommandProc: TTL, arity: 1}
 
 }

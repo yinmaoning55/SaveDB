@@ -37,7 +37,7 @@ func LPop(db *saveDBTables, args []string) Result {
 	}
 	val, _ := list.Remove(0).(string)
 	if list.Len() == 0 {
-		delete(db.List.L, key)
+		DelList(db, key)
 	}
 	return CreateStrResult(C_OK, val)
 }
@@ -161,7 +161,7 @@ func LRem(db *saveDBTables, args []string) Result {
 	}
 
 	if list.Len() == 0 {
-		delete(db.List.L, key)
+		DelList(db, key)
 	}
 	if removed > 0 {
 		//aof
@@ -169,7 +169,10 @@ func LRem(db *saveDBTables, args []string) Result {
 
 	return CreateStrResult(C_OK, strconv.Itoa(removed))
 }
-
+func DelList(db *saveDBTables, key string) {
+	delete(db.List.L, key)
+	db.AllKeys.RemoveKey(db, key)
+}
 func LSet(db *saveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
@@ -218,7 +221,7 @@ func RPop(db *saveDBTables, args []string) Result {
 
 	val, _ := list.RemoveLast().(string)
 	if list.Len() == 0 {
-		delete(db.List.L, key)
+		DelList(db, key)
 	}
 	//aof
 
@@ -251,7 +254,7 @@ func RPopLPush(db *saveDBTables, args []string) Result {
 	destList.Insert(0, val)
 
 	if list.Len() == 0 {
-		delete(db.List.L, sourceKey)
+		DelList(db, sourceKey)
 	}
 
 	return CreateStrResult(C_OK, val)

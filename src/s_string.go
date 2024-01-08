@@ -27,6 +27,7 @@ func Get(db *saveDBTables, args []string) Result {
 	key := args[0]
 	item, ok := db.Str.btree.Get(&Item{key: StringToBytes(key)})
 	if ok {
+		db.AllKeys.ActivateKey(args[0])
 		return CreateResult(C_OK, item.value)
 	}
 	return CreateStrResult(C_ERR, "key is exist")
@@ -34,14 +35,14 @@ func Get(db *saveDBTables, args []string) Result {
 
 func SetExc(db *saveDBTables, arg []string) Result {
 	db.Str.btree.Set(&Item{key: StringToBytes(arg[0]), value: StringToBytes(arg[1])})
+	db.AllKeys.PutKey(arg[0], TypeStr)
 	return CreateResult(C_OK, StringToBytes(OK_STR))
 }
-
-func Delete(db *saveDBTables, args []string) Result {
+func DelStr(db *saveDBTables, args []string) Result {
 	db.Str.btree.Delete(&Item{key: StringToBytes(args[0])})
+	db.AllKeys.RemoveKey(db, args[0])
 	return CreateResult(C_OK, StringToBytes(OK_STR))
 }
-
 func All(db *saveDBTables, args []string) Result {
 	items := db.Str.btree.Items()
 	size := len(items)
@@ -106,10 +107,3 @@ func All(db *saveDBTables, args []string) Result {
 //
 //	return records
 //}
-
-func getCommand(m *Message) string {
-	return "ok"
-}
-func setCommand(m *Message) string {
-	return "ok"
-}

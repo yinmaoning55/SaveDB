@@ -691,3 +691,8 @@ func ZRevRangeByLex(db *saveDBTables, args []string) Result {
 	res := strings.Join(result, ",")
 	return CreateStrResult(C_OK, res)
 }
+
+func DelZSet(db *saveDBTables, key string) {
+	delete(db.ZSet.Z, key)
+	db.AllKeys.RemoveKey(db, key)
+}

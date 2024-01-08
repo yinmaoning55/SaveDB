@@ -118,3 +118,7 @@ func HGetAll(db *saveDBTables, args []string) Result {
 	}
 	return CreateStrResult(C_OK, builder.String())
 }
+func DelHash(db *saveDBTables, key string) {
+	delete(db.Hash.M, key)
+	db.AllKeys.RemoveKey(db, key)
+}

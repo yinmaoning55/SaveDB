@@ -119,7 +119,10 @@ func SInter(db *saveDBTables, args []string) Result {
 	result := strings.Join(values, ", ")
 	return CreateStrResult(C_OK, result)
 }
-
+func DelSet(db *saveDBTables, key string) {
+	delete(db.Set.M, key)
+	db.AllKeys.RemoveKey(db, key)
+}
 func SIsMember(db *saveDBTables, args []string) Result {
 	key := args[0]
 	if _, ok := db.Set.M[key]; !ok {

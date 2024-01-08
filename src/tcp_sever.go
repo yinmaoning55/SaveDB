@@ -171,6 +171,9 @@ func (c *Connection) WriterMsg() {
 				return
 			} else {
 				data := msg.ReturnData
+				if c.Conn == nil {
+					continue
+				}
 				_, _ = c.Conn.Write(*data)
 			}
 		}
