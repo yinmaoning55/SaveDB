@@ -326,7 +326,7 @@ func ZRangeByScore(db *saveDBTables, args []string) Result {
 	return rangeByScore0(db, key, min, max, offset, limit, withScores, false)
 }
 
-func execZRevRangeByScore(db *saveDBTables, args []string) Result {
+func ZRevRangeByScore(db *saveDBTables, args []string) Result {
 	if len(args) < 3 {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'zrangebyscore' command")
 	}
@@ -536,7 +536,7 @@ func ZLexCount(db *saveDBTables, args []string) Result {
 		return CreateResult(C_ERR, nil)
 	}
 
-	minEle, maxEle := string(args[1]), string(args[2])
+	minEle, maxEle := args[1], args[2]
 	min, err := ParseLexBorder(minEle)
 	if err != nil {
 		CreateStrResult(C_ERR, err.Error())
@@ -553,7 +553,7 @@ func ZLexCount(db *saveDBTables, args []string) Result {
 
 func ZRangeByLex(db *saveDBTables, args []string) Result {
 	n := len(args)
-	if n > 3 && strings.ToLower(string(args[3])) != "limit" {
+	if n > 3 && strings.ToLower(args[3]) != "limit" {
 		return CreateStrResult(C_ERR, "ERR syntax error")
 	}
 	if n != 3 && n != 6 {

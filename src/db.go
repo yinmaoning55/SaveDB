@@ -85,4 +85,24 @@ func InitCommand() {
 	saveCommandMap["rpushx"] = saveDBCommand{name: "rpushx", saveCommandProc: RPushX, arity: -1}
 	saveCommandMap["ltrim"] = saveDBCommand{name: "ltrim", saveCommandProc: LTrim, arity: 3}
 	saveCommandMap["linsert"] = saveDBCommand{name: "linsert", saveCommandProc: LInsert, arity: 4}
+
+	saveCommandMap["zadd"] = saveDBCommand{name: "zadd", saveCommandProc: ZAdd, arity: -1}
+	saveCommandMap["zscore"] = saveDBCommand{name: "zscore", saveCommandProc: ZScore, arity: 2}
+	saveCommandMap["zrank"] = saveDBCommand{name: "zrank", saveCommandProc: ZRank, arity: 2}
+	saveCommandMap["zrevrank"] = saveDBCommand{name: "zrevrank", saveCommandProc: ZRevRank, arity: 2}
+	saveCommandMap["zcard"] = saveDBCommand{name: "zcard", saveCommandProc: ZCard, arity: 1}
+	saveCommandMap["zrange"] = saveDBCommand{name: "zrange", saveCommandProc: ZRange, arity: -1}
+	saveCommandMap["zrevrange"] = saveDBCommand{name: "zrevrange", saveCommandProc: ZRevRange, arity: -1}
+	saveCommandMap["zcount"] = saveDBCommand{name: "zcount", saveCommandProc: ZCount, arity: 3}
+	saveCommandMap["zrangebyscore"] = saveDBCommand{name: "zrangebyscore", saveCommandProc: ZRangeByScore, arity: -1}
+	saveCommandMap["zrevrangebyscore"] = saveDBCommand{name: "ZRevRangeByScore", saveCommandProc: ZRevRangeByScore, arity: -1}
+	saveCommandMap["zremrangebyscore"] = saveDBCommand{name: "zremrangebyscore", saveCommandProc: ZRemRangeByScore, arity: -1}
+	saveCommandMap["zpopMin"] = saveDBCommand{name: "zpopMin", saveCommandProc: ZPopMin, arity: 2}
+	saveCommandMap["zrem"] = saveDBCommand{name: "zrem", saveCommandProc: ZRem, arity: -1}
+	saveCommandMap["zincrby"] = saveDBCommand{name: "zincrby", saveCommandProc: ZIncrBy, arity: 3}
+	saveCommandMap["zlexcount"] = saveDBCommand{name: "zlexcount", saveCommandProc: ZLexCount, arity: 3}
+	saveCommandMap["zrangebylex"] = saveDBCommand{name: "zrangebylex", saveCommandProc: ZRangeByLex, arity: -1}
+	saveCommandMap["zremrangebylex"] = saveDBCommand{name: "zremrangebylex", saveCommandProc: ZRemRangeByLex, arity: 3}
+	saveCommandMap["zrevrangebylex"] = saveDBCommand{name: "zrevrangebylex", saveCommandProc: ZRevRangeByLex, arity: -1}
+
 }
