@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"savedb/src/log"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -36,10 +37,10 @@ func StartTCPServer(port int) error {
 	var ctx context.Context
 	listener, err := lc.Listen(ctx, "tcp", address)
 	if err != nil {
-		SaveDBLogger.Error("TCP Server start fail, Listen :%s", address)
+		log.SaveDBLogger.Error("TCP Server start fail, Listen :%s", address)
 		return err
 	}
-	SaveDBLogger.Infof("TCP Server started, Listen :%s", address)
+	log.SaveDBLogger.Infof("TCP Server started, Listen :%s", address)
 	conns := make(map[net.Conn]Connection)
 	TcpServer.Connections = conns
 	allRead := make(chan *Message, 1024)
@@ -50,20 +51,20 @@ func StartTCPServer(port int) error {
 func (server *TCPServer) acceptConn(listener net.Listener) {
 	defer func() {
 		if r := recover(); r != nil {
-			SaveDBLogger.Errorf("AcceptConn  from panic:%v, recover again", r)
+			log.SaveDBLogger.Errorf("AcceptConn  from panic:%v, recover again", r)
 			go server.acceptConn(listener)
 		}
 	}()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			SaveDBLogger.Error(err)
+			log.SaveDBLogger.Error(err)
 			continue
 		}
 		tcpConn := conn.(*net.TCPConn)
 		err = tcpConn.SetNoDelay(true)
 		if err != nil {
-			SaveDBLogger.Error("Error setting TCP NoDelay:", err)
+			log.SaveDBLogger.Error("Error setting TCP NoDelay:", err)
 		}
 		//逻辑处理
 		go onMessage(&conn)
@@ -87,19 +88,19 @@ type OnConnection interface {
 }
 
 func (c *Connection) ConnOpen() {
-	SaveDBLogger.Infof("connection establishment conn=%v", c.Conn.RemoteAddr())
+	log.SaveDBLogger.Infof("connection establishment conn=%v", c.Conn.RemoteAddr())
 }
 
 func (c *Connection) ConnClose() {
 	delete(TcpServer.Connections, c.Conn)
-	SaveDBLogger.Infof("connection closed conn=%v", c.Conn.RemoteAddr())
+	log.SaveDBLogger.Infof("connection closed conn=%v", c.Conn.RemoteAddr())
 	_ = (c.Conn).Close()
 }
 
 func (c *Connection) ReadMsg() {
 	defer func() {
 		if r := recover(); r != nil {
-			SaveDBLogger.Errorf("AcceptConn  from panic:%v", r)
+			log.SaveDBLogger.Errorf("AcceptConn  from panic:%v", r)
 		}
 		c.ConnClose()
 	}()
@@ -109,9 +110,9 @@ func (c *Connection) ReadMsg() {
 		_, err := io.ReadFull(c.Conn, buff1)
 		if err != nil {
 			if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
-				SaveDBLogger.Infof("client close err %v, conn=%v", err, c.Conn.RemoteAddr())
+				log.SaveDBLogger.Infof("client close err %v, conn=%v", err, c.Conn.RemoteAddr())
 			} else {
-				SaveDBLogger.Errorf("Read data error %v, conn=%v", err, c.Conn.RemoteAddr())
+				log.SaveDBLogger.Errorf("Read data error %v, conn=%v", err, c.Conn.RemoteAddr())
 			}
 			return
 		}
@@ -120,7 +121,7 @@ func (c *Connection) ReadMsg() {
 		bufd := bufData[MSG_BUFFER_OFFSET : mlen+MSG_BUFFER_OFFSET]
 		_, err = io.ReadFull(c.Conn, bufd)
 		if err != nil {
-			SaveDBLogger.Errorf("Read data error %v, conn=%v", err, c.Conn.RemoteAddr())
+			log.SaveDBLogger.Errorf("Read data error %v, conn=%v", err, c.Conn.RemoteAddr())
 			return
 		}
 		//序列化指令格式为: command 参数1 参数2 参数3 ........
@@ -133,7 +134,7 @@ func (c *Connection) ReadMsg() {
 		command := words[0]
 		com, ok := saveCommandMap[command]
 		if command == "heart" {
-			SaveDBLogger.Infof("heart packet conn=%v", c.Conn.RemoteAddr())
+			log.SaveDBLogger.Infof("heart packet conn=%v", c.Conn.RemoteAddr())
 			continue
 		}
 		//非法格式直接返回错误
@@ -159,7 +160,7 @@ func (c *Connection) ReadMsg() {
 func (c *Connection) WriterMsg() {
 	defer func() {
 		if r := recover(); r != nil {
-			SaveDBLogger.Errorf("WriterMsg from panic:%v, conn=%v", r, c.Conn.RemoteAddr())
+			log.SaveDBLogger.Errorf("WriterMsg from panic:%v, conn=%v", r, c.Conn.RemoteAddr())
 		}
 	}()
 	for {
@@ -167,7 +168,7 @@ func (c *Connection) WriterMsg() {
 		case msg, ok := <-c.Writer:
 			if !ok {
 				//主动关闭链接了
-				SaveDBLogger.Info("Connection close by self", c.Conn.RemoteAddr())
+				log.SaveDBLogger.Info("Connection close by self", c.Conn.RemoteAddr())
 				if !c.Close.Load() {
 					c.ConnClose()
 				}
@@ -193,7 +194,7 @@ type Message struct {
 func onMessage(conn *net.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
-			SaveDBLogger.Errorf("onMessage from panic:%v, conn=%v", r, (*conn).RemoteAddr())
+			log.SaveDBLogger.Errorf("onMessage from panic:%v, conn=%v", r, (*conn).RemoteAddr())
 		}
 	}()
 	var connection = &Connection{}
@@ -233,8 +234,8 @@ func createReadMsg() {
 var Config *serverConfig = &serverConfig{}
 
 type serverConfig struct {
-	Port int        `yaml:"port"`
-	Logs *LogConfig `yaml:"logs"`
+	Port int            `yaml:"port"`
+	Logs *log.LogConfig `yaml:"logs"`
 }
 
 func (config *serverConfig) LoadConfig(path string) {
@@ -274,7 +275,7 @@ func writeInt64(bs []byte, pos int, v int64) {
 func MainGoroutine() {
 	defer func() {
 		if e := recover(); e != nil {
-			SaveDBLogger.Errorf("recover the panic:", e)
+			log.SaveDBLogger.Errorf("recover the panic:", e)
 		}
 	}()
 	for {
