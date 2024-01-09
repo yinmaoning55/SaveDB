@@ -1,8 +1,9 @@
-package src
+package main
 
 import (
 	"encoding/binary"
 	"fmt"
+	"savedb/src"
 	"testing"
 	"time"
 	"unsafe"
@@ -91,7 +92,7 @@ func TestByte(t *testing.T) {
 func TestByte2(t *testing.T) {
 	str := "1"
 	data := make([]byte, len([]byte(str))+2+4)
-	binary.BigEndian.PutUint16(data[:2], C_OK)
+	binary.BigEndian.PutUint16(data[:2], src.C_OK)
 	binary.BigEndian.PutUint32(data[2:6], uint32(len([]byte(str))))
 	copy(data[6:], str)
 	fmt.Println(data)

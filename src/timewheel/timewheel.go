@@ -1,7 +1,8 @@
-package src
+package timewheel
 
 import (
 	"container/list"
+	"savedb/src/log"
 	"time"
 )
 
@@ -123,7 +124,7 @@ func (tw *TimeWheel) scanAndRunTask(l *list.List) {
 		go func() {
 			defer func() {
 				if err := recover(); err != nil {
-					SaveDBLogger.Error(err)
+					log.SaveDBLogger.Error(err)
 				}
 			}()
 			job := task.job

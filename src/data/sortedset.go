@@ -1,4 +1,4 @@
-package src
+package data
 
 import (
 	"strconv"
@@ -11,7 +11,7 @@ type SortedSet struct {
 }
 
 // Make makes a new SortedSet
-func Make() *SortedSet {
+func MakeSortedSet() *SortedSet {
 	return &SortedSet{
 		dict:     make(map[string]*Element),
 		skiplist: makeSkiplist(),

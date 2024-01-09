@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/signal"
 	"savedb/src"
+	"savedb/src/log"
 	"syscall"
 	"time"
 )
@@ -17,14 +18,14 @@ func main() {
 
 	src.Config.LoadConfig(path)
 
-	src.InitLog(src.Config.Logs)
-	src.SaveDBLogger.Infof("init config!", src.Config)
+	log.InitLog(src.Config.Logs)
+	log.SaveDBLogger.Infof("init config!", src.Config)
 
 	src.InitCommand()
 
 	err := src.StartTCPServer(src.Config.Port)
 	if err != nil {
-		src.SaveDBLogger.Error("tcp server start fail err=", err)
+		log.SaveDBLogger.Error("tcp server start fail err=", err)
 		return
 	}
 
@@ -36,19 +37,19 @@ func main() {
 
 	//一个协程负责所有的读写逻辑
 	go src.MainGoroutine()
-	src.SaveDBLogger.Infof("server start successful!")
+	log.SaveDBLogger.Infof("server start successful!")
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	for {
 		select {
 		case s := <-sig:
-			src.SaveDBLogger.Infof("server will stop...")
+			log.SaveDBLogger.Infof("server will stop...")
 			//停止所有的读写
 			src.TcpServer.Close.Store(true)
 			time.Sleep(time.Second)
 			//持久化
-			src.SaveDBLogger.Infof("server stopped by", s.String())
+			log.SaveDBLogger.Infof("server stopped by", s.String())
 			return
 		}
 	}

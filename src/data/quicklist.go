@@ -1,4 +1,4 @@
-package src
+package data
 
 import "container/list"
 
@@ -6,7 +6,7 @@ import "container/list"
 const pageSize = 1024
 
 type Expected func(a interface{}) bool
-type Consumer func(i int, v interface{}) bool
+type Consumer2 func(i int, v interface{}) bool
 
 // QuickList is a linked list of page (which type is []interface{})
 // QuickList has better performance than LinkedList of Add, Range and memory usage
@@ -339,7 +339,7 @@ func (ql *QuickList) ReverseRemoveByVal(expected Expected, count int) int {
 
 // ForEach visits each element in the list
 // if the consumer returns false, the loop will be break
-func (ql *QuickList) ForEach(consumer Consumer) {
+func (ql *QuickList) ForEach(consumer Consumer2) {
 	if ql == nil {
 		panic("list is nil")
 	}

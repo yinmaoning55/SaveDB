@@ -1,6 +1,8 @@
-package src
+package timewheel
 
-import "time"
+import (
+	"time"
+)
 
 var tw = New(time.Second, 3600)
 

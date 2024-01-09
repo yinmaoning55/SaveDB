@@ -1,4 +1,4 @@
-package src
+package data
 
 import "testing"
 
