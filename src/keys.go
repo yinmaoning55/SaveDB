@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/tidwall/btree"
 	"regexp"
+	"savedb/src/timewheel"
 	"strconv"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ func Expire(db *saveDBTables, args []string) Result {
 	ttl := time.Duration(expire*1000) * time.Millisecond
 	expireAt := time.Now().Add(ttl)
 	db.Expires[key] = expireAt
-	AddTimer(expireAt, key, func() {
+	timewheel.AddTimer(expireAt, key, func() {
 		DelExpireKey(args)
 	})
 	return CreateStrResult(C_OK, OK_STR)
@@ -65,24 +66,8 @@ func Delete(db *saveDBTables, args []string) Result {
 	if !db.AllKeys.Exist(key) {
 		return CreateStrResult(C_ERR, "key not exist")
 	}
-	keyType := db.AllKeys.GetKey(key).dataType
-	switch keyType {
-	case TypeStr:
-		DelStr(db, args)
-		break
-	case TypeHash:
-		DelHash(db, key)
-		break
-	case TypeSet:
-		DelSet(db, key)
-		break
-	case TypeZSet:
-		DelZSet(db, key)
-		break
-	case TypeList:
-		DelList(db, key)
-		break
-	}
+	db.Data.Remove(key)
+	db.AllKeys.RemoveKey(db, key)
 	return CreateStrResult(C_OK, OK_STR)
 }
 

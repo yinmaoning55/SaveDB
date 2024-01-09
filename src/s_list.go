@@ -2,28 +2,47 @@ package src
 
 import (
 	"fmt"
+	"savedb/src/data"
 	"strconv"
 	"strings"
 )
 
 type List struct {
-	L map[string]*QuickList
+	L *data.QuickList
 }
 
 func NewList() *List {
 	l := &List{}
-	l.L = make(map[string]*QuickList)
+	l.L = data.NewQuickList()
 	return l
 }
+func (db *saveDBTables) GetOrCreateList(key string) *List {
+	val, ok := db.Data.Get(key)
+	if !ok {
+		val = NewList()
+		db.AllKeys.PutKey(key, TypeList)
+		db.Data.Put(key, val)
+		return val.(*List)
+	}
+	return val.(*List)
+}
 
+func (db *saveDBTables) GetList(key string) *List {
+	val, ok := db.Data.Get(key)
+	if !ok {
+		return nil
+	}
+	db.AllKeys.ActivateKey(key)
+	return val.(*List)
+}
 func LLen(db *saveDBTables, args []string) Result {
 	key := args[0]
 
-	list, ok := db.List.L[key]
-	if !ok {
+	list := db.GetList(key)
+	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
-	size := list.Len()
+	size := list.L.Len()
 	return CreateStrResult(C_OK, strconv.Itoa(size))
 }
 
@@ -31,13 +50,13 @@ func LPop(db *saveDBTables, args []string) Result {
 	key := args[0]
 
 	// get data
-	list, ok := db.List.L[key]
-	if !ok {
+	list := db.GetList(key)
+	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
-	val, _ := list.Remove(0).(string)
-	if list.Len() == 0 {
-		DelList(db, key)
+	val, _ := list.L.Remove(0).(string)
+	if list.L.Len() == 0 {
+		Delete(db, args)
 	}
 	return CreateStrResult(C_OK, val)
 }
@@ -46,15 +65,12 @@ func LPush(db *saveDBTables, args []string) Result {
 	key := args[0]
 	values := args[1:]
 
-	list, ok := db.List.L[key]
-	if !ok {
-		db.List.L[key] = NewQuickList()
-	}
+	list := db.GetOrCreateList(key)
 	// insert
 	for _, value := range values {
-		list.Insert(0, value)
+		list.L.Insert(0, value)
 	}
-	return CreateStrResult(C_OK, strconv.Itoa(list.Len()))
+	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }
 
 func LPushX(db *saveDBTables, args []string) Result {
@@ -62,13 +78,13 @@ func LPushX(db *saveDBTables, args []string) Result {
 	values := args[1:]
 
 	// get or init entity
-	list, ok := db.List.L[key]
-	if !ok {
-		db.List.L[key] = NewQuickList()
+	list := db.GetList(key)
+	if list == nil {
+		return CreateStrResult(C_ERR, "list not exist")
 	}
 	// insert
 	for _, value := range values {
-		list.Insert(0, value)
+		list.L.Insert(0, value)
 	}
 	return CreateStrResult(C_OK, strconv.Itoa(len(values)))
 }
@@ -88,13 +104,13 @@ func LRange(db *saveDBTables, args []string) Result {
 	stop := int(stop64)
 
 	// get data
-	list, ok := db.L[key]
-	if !ok {
+	list := db.GetList(key)
+	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
 
 	// compute index
-	size := list.Len() // assert: size > 0
+	size := list.L.Len() // assert: size > 0
 	if start < -1*size {
 		start = 0
 	} else if start < 0 {
@@ -116,7 +132,7 @@ func LRange(db *saveDBTables, args []string) Result {
 	}
 
 	// assert: start in [0, size - 1], stop in [start, size]
-	slice := list.Range(start, stop)
+	slice := list.L.Range(start, stop)
 	result := make([]string, len(slice))
 
 	for i, raw := range slice {
@@ -137,31 +153,28 @@ func LRem(db *saveDBTables, args []string) Result {
 	count := int(count64)
 	value := args[2]
 
-	list, ok := db.L[key]
-	if !ok {
-		return CreateStrResult(C_ERR, "list not exist")
-	}
+	list := db.GetList(key)
 	if list == nil {
-		return CreateStrResult(C_OK, "0")
+		return CreateStrResult(C_ERR, "list not exist")
 	}
 
 	var removed int
 	if count == 0 {
-		removed = list.RemoveAllByVal(func(a interface{}) bool {
+		removed = list.L.RemoveAllByVal(func(a interface{}) bool {
 			return Equals(a, value)
 		})
 	} else if count > 0 {
-		removed = list.RemoveByVal(func(a interface{}) bool {
+		removed = list.L.RemoveByVal(func(a interface{}) bool {
 			return Equals(a, value)
 		}, count)
 	} else {
-		removed = list.ReverseRemoveByVal(func(a interface{}) bool {
+		removed = list.L.ReverseRemoveByVal(func(a interface{}) bool {
 			return Equals(a, value)
 		}, -count)
 	}
 
-	if list.Len() == 0 {
-		DelList(db, key)
+	if list.L.Len() == 0 {
+		Delete(db, args)
 	}
 	if removed > 0 {
 		//aof
@@ -169,10 +182,7 @@ func LRem(db *saveDBTables, args []string) Result {
 
 	return CreateStrResult(C_OK, strconv.Itoa(removed))
 }
-func DelList(db *saveDBTables, key string) {
-	delete(db.List.L, key)
-	db.AllKeys.RemoveKey(db, key)
-}
+
 func LSet(db *saveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
@@ -184,15 +194,15 @@ func LSet(db *saveDBTables, args []string) Result {
 	index := int(index64)
 	value := args[2]
 	// get data
-	list, ok := db.L[key]
-	if !ok {
+	list := db.GetList(key)
+	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "ERR no such key")
 	}
 
-	size := list.Len() // assert: size > 0
+	size := list.L.Len() // assert: size > 0
 	if index < -1*size {
 		return CreateStrResult(C_ERR, "ERR index out of range")
 	} else if index < 0 {
@@ -201,7 +211,7 @@ func LSet(db *saveDBTables, args []string) Result {
 		return CreateStrResult(C_ERR, "ERR index out of range")
 	}
 
-	list.Set(index, value)
+	list.L.Set(index, value)
 	db.AllKeys.PutKey(key, TypeList)
 	return CreateResult(C_OK, nil)
 }
@@ -211,17 +221,17 @@ func RPop(db *saveDBTables, args []string) Result {
 	key := args[0]
 
 	// get data
-	list, ok := db.L[key]
-	if !ok {
+	list := db.GetList(key)
+	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "ERR no such key")
 	}
 
-	val, _ := list.RemoveLast().(string)
-	if list.Len() == 0 {
-		DelList(db, key)
+	val, _ := list.L.RemoveLast().(string)
+	if list.L.Len() == 0 {
+		Delete(db, args)
 	}
 	//aof
 
@@ -233,28 +243,25 @@ func RPopLPush(db *saveDBTables, args []string) Result {
 	destKey := args[1]
 
 	// get source entity
-	list, ok := db.L[sourceKey]
-	if !ok {
-		return CreateStrResult(C_ERR, "list not exist")
-	}
+	list := db.GetList(sourceKey)
 	if list == nil {
-		return CreateStrResult(C_ERR, "ERR no such key")
+		return CreateStrResult(C_ERR, "list not exist")
 	}
 
 	// get dest entity
-	destList, ok := db.L[destKey]
-	if !ok {
+	destList := db.GetList(destKey)
+	if destList == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
 	if destList == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
 	// pop and push
-	val, _ := list.RemoveLast().(string)
-	destList.Insert(0, val)
+	val, _ := list.L.RemoveLast().(string)
+	destList.L.Insert(0, val)
 
-	if list.Len() == 0 {
-		DelList(db, sourceKey)
+	if list.L.Len() == 0 {
+		Delete(db, args)
 	}
 
 	return CreateStrResult(C_OK, val)
@@ -266,16 +273,15 @@ func RPush(db *saveDBTables, args []string) Result {
 	values := args[1:]
 
 	// get or init entity
-	list, ok := db.L[key]
-	if !ok {
+	list := db.GetList(key)
+	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
-
 	// put list
 	for _, value := range values {
-		list.Add(value)
+		list.L.Add(value)
 	}
-	return CreateStrResult(C_OK, strconv.Itoa(list.Len()))
+	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }
 
 func RPushX(db *saveDBTables, args []string) Result {
@@ -286,19 +292,16 @@ func RPushX(db *saveDBTables, args []string) Result {
 	values := args[1:]
 
 	// get or init entity
-	list, ok := db.L[key]
-	if !ok {
-		return CreateStrResult(C_ERR, "list not exist")
-	}
+	list := db.GetList(key)
 	if list == nil {
-		return CreateStrResult(C_ERR, "list is null")
+		return CreateStrResult(C_ERR, "list not exist")
 	}
 
 	// put list
 	for _, value := range values {
-		list.Add(value)
+		list.L.Add(value)
 	}
-	return CreateStrResult(C_OK, strconv.Itoa(list.Len()))
+	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }
 
 func LTrim(db *saveDBTables, args []string) Result {
@@ -306,7 +309,7 @@ func LTrim(db *saveDBTables, args []string) Result {
 	if n != 3 {
 		return CreateStrResult(C_ERR, fmt.Sprintf("ERR wrong number of arguments (given %d, expected 3)", n))
 	}
-	key := string(args[0])
+	key := args[0]
 	start, err := strconv.Atoi(args[1])
 	if err != nil {
 		return CreateStrResult(C_ERR, "ERR value is not an integer or out of range")
@@ -315,14 +318,14 @@ func LTrim(db *saveDBTables, args []string) Result {
 	if err != nil {
 		return CreateStrResult(C_ERR, "ERR value is not an integer or out of range")
 	}
-	list, ok := db.L[key]
-	if !ok {
+	list := db.GetList(key)
+	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list is null")
 	}
-	length := list.Len()
+	length := list.L.Len()
 	if start < 0 {
 		start += length
 	}
@@ -333,11 +336,11 @@ func LTrim(db *saveDBTables, args []string) Result {
 	leftCount := start
 	rightCount := length - end - 1
 
-	for i := 0; i < leftCount && list.Len() > 0; i++ {
-		list.Remove(0)
+	for i := 0; i < leftCount && list.L.Len() > 0; i++ {
+		list.L.Remove(0)
 	}
-	for i := 0; i < rightCount && list.Len() > 0; i++ {
-		list.RemoveLast()
+	for i := 0; i < rightCount && list.L.Len() > 0; i++ {
+		list.L.RemoveLast()
 	}
 	return CreateResult(C_OK, nil)
 }
@@ -348,12 +351,9 @@ func LInsert(db *saveDBTables, args []string) Result {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'linsert' command")
 	}
 	key := args[0]
-	list, ok := db.L[key]
-	if !ok {
-		return CreateStrResult(C_ERR, "list not exist")
-	}
+	list := db.GetList(key)
 	if list == nil {
-		return CreateStrResult(C_ERR, "list is null")
+		return CreateStrResult(C_ERR, "list not exist")
 	}
 
 	dir := strings.ToLower(string(args[1]))
@@ -363,7 +363,7 @@ func LInsert(db *saveDBTables, args []string) Result {
 
 	pivot := args[2]
 	index := -1
-	list.ForEach(func(i int, v interface{}) bool {
+	list.L.ForEach(func(i int, v interface{}) bool {
 		if string(v.([]byte)) == pivot {
 			index = i
 			return false
@@ -376,9 +376,9 @@ func LInsert(db *saveDBTables, args []string) Result {
 
 	val := args[3]
 	if dir == "before" {
-		list.Insert(index, val)
+		list.L.Insert(index, val)
 	} else {
-		list.Insert(index+1, val)
+		list.L.Insert(index+1, val)
 	}
-	return CreateStrResult(C_OK, strconv.Itoa(list.Len()))
+	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }

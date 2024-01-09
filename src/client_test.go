@@ -40,4 +40,40 @@ func TestClinet(t *testing.T) {
 		resStr := client.SendMsg(input)
 		fmt.Println(resStr)
 	}
+
 }
+
+//func TestClient2(t *testing.T) {
+//	// 获取标准输入的文件描述符
+//	fd := int(os.Stdin.Fd())
+//
+//	// 设置终端模式
+//	oldState, err := term.MakeRaw(fd)
+//	if err != nil {
+//		fmt.Println("Error setting raw mode:", err)
+//		return
+//	}
+//	defer term.Restore(fd, oldState)
+//
+//	fmt.Print("Press 'q' to quit\n")
+//	for {
+//		// 读取单个字符
+//		char, key, err := term.ReadKey(fd)
+//		if err != nil {
+//			fmt.Println("Error reading key:", err)
+//			return
+//		}
+//
+//		switch {
+//		case key == term.KeyArrowLeft:
+//			fmt.Println("Left arrow pressed")
+//		case key == term.KeyArrowRight:
+//			fmt.Println("Right arrow pressed")
+//		case char == 'q':
+//			fmt.Println("Quitting...")
+//			return
+//		default:
+//			fmt.Printf("Unknown key: %c\n", char)
+//		}
+//	}
+//}

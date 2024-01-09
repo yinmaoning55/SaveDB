@@ -1,7 +1,6 @@
 package src
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 )
@@ -11,40 +10,51 @@ import (
 // 2、扩容机制类似于redis的渐进式rehash，map的LoadFactor是6.5
 // 3、如果 key 或 value 的数据长度大于一定数值(128)，那么运行时不会在 bucket 中直接存储数据，而是会存储 key 或 value 数据的指针。
 // 4、go中的hashcode是吧key的hashcode一分为二，其中低位区的值用于选定 bucket，高位区的值用于在某个 bucket 中确定 key 的位置
-var (
-	ErrSetNotExist = errors.New("set not exist")
-
-	ErrMemberEmpty = errors.New("item empty")
-)
 
 type Set struct {
-	M map[string]map[string]*struct{}
+	M map[string]*struct{}
 }
 
 func NewSet() *Set {
 	s := &Set{}
-	s.M = make(map[string]map[string]*struct{})
+	s.M = make(map[string]*struct{})
 	return s
+}
+
+func (db *saveDBTables) GetOrCreateSet(key string) *Set {
+	val, ok := db.Data.Get(key)
+	if !ok {
+		val = NewSet()
+		db.AllKeys.PutKey(key, TypeSet)
+		db.Data.Put(key, val)
+		return val.(*Set)
+	}
+	return val.(*Set)
+}
+
+func (db *saveDBTables) GetSet(key string) *Set {
+	val, ok := db.Data.Get(key)
+	if !ok {
+		return nil
+	}
+	db.AllKeys.ActivateKey(key)
+	return val.(*Set)
 }
 
 func SAdd(db *saveDBTables, args []string) Result {
 	key := args[0]
-	set, ok := db.Set.M[key]
-	if !ok {
-		db.Set.M[key] = make(map[string]*struct{})
-		set = db.Set.M[key]
-	}
+	set := db.GetOrCreateSet(key)
 	for _, value := range args[1:] {
-		set[value] = &struct{}{}
+		set.M[value] = &struct{}{}
 	}
-	db.AllKeys.PutKey(key, TypeSet)
+
 	return CreateStrResult(C_OK, strconv.Itoa(len(args[1:])))
 }
 
 func SMove(db *saveDBTables, args []string) Result {
 	key := args[0]
-	set, ok := db.Set.M[key]
-	if !ok {
+	set := db.GetSet(key)
+	if set == nil {
 		return CreateStrResult(C_ERR, "key inexistence")
 	}
 	values := args[1:]
@@ -53,7 +63,7 @@ func SMove(db *saveDBTables, args []string) Result {
 	}
 
 	for _, value := range values {
-		delete(set, value)
+		delete(set.M, value)
 	}
 	return CreateStrResult(C_OK, strconv.Itoa(len(values)))
 
@@ -61,7 +71,7 @@ func SMove(db *saveDBTables, args []string) Result {
 
 func SHasKey(db *saveDBTables, args []string) Result {
 	key := args[0]
-	if _, ok := db.Set.M[key]; ok {
+	if v := db.GetSet(key); v != nil {
 		return CreateResult(C_OK, nil)
 	}
 	return CreateResult(C_ERR, nil)
@@ -73,8 +83,8 @@ func SPop(db *saveDBTables, args []string) Result {
 		return CreateStrResult(C_ERR, "key inexistence")
 	}
 
-	for v, _ := range db.Set.M[key] {
-		delete(db.Set.M[key], v)
+	for v, _ := range db.GetSet(key).M {
+		delete(db.GetSet(key).M, v)
 		return CreateStrResult(C_OK, v)
 	}
 
@@ -86,7 +96,7 @@ func SCard(db *saveDBTables, args []string) Result {
 	if SHasKey(db, args).Status != C_OK {
 		return CreateStrResult(C_ERR, "key inexistence")
 	}
-	return CreateStrResult(C_OK, strconv.Itoa(len(db.Set.M[key])))
+	return CreateStrResult(C_OK, strconv.Itoa(len(db.GetSet(key).M)))
 }
 
 func SDiff(db *saveDBTables, args []string) Result {
@@ -96,8 +106,8 @@ func SDiff(db *saveDBTables, args []string) Result {
 	records := make([]string, 0)
 	key1 := args[0]
 	key2 := args[1]
-	for v, _ := range db.Set.M[key1] {
-		if _, ok := db.Set.M[key2][v]; !ok {
+	for v, _ := range db.GetSet(key1).M {
+		if _, ok := db.GetSet(key2).M[v]; !ok {
 			records = append(records, v)
 		}
 	}
@@ -112,25 +122,22 @@ func SInter(db *saveDBTables, args []string) Result {
 	key1 := args[0]
 	key2 := args[1]
 	values := make([]string, 0)
-	for v, _ := range db.Hash.M[key1] {
-		if _, ok := db.Hash.M[key2][v]; ok {
+	for v, _ := range db.GetSet(key1).M {
+		if _, ok := db.GetSet(key2).M[v]; ok {
 			values = append(values, v)
 		}
 	}
 	result := strings.Join(values, ", ")
 	return CreateStrResult(C_OK, result)
 }
-func DelSet(db *saveDBTables, key string) {
-	delete(db.Set.M, key)
-	db.AllKeys.RemoveKey(db, key)
-}
+
 func SIsMember(db *saveDBTables, args []string) Result {
 	key := args[0]
-	if _, ok := db.Set.M[key]; !ok {
+	if v := db.GetSet(key); v == nil {
 		return CreateStrResult(C_ERR, "set not exist")
 	}
 	value := args[1]
-	if _, ok := db.Set.M[key][value]; ok {
+	if _, ok := db.GetSet(key).M[value]; ok {
 		return CreateResult(C_OK, nil)
 	}
 
@@ -139,12 +146,12 @@ func SIsMember(db *saveDBTables, args []string) Result {
 
 func SAreMembers(db *saveDBTables, args []string) Result {
 	key := args[0]
-	if _, ok := db.Set.M[key]; !ok {
+	if v := db.GetSet(key); v == nil {
 		return CreateStrResult(C_ERR, "set not exist")
 	}
 	values := args[1:]
 	for _, value := range values {
-		if _, ok := db.Set.M[key][value]; !ok {
+		if _, ok := db.GetSet(key).M[value]; !ok {
 			return CreateStrResult(C_ERR, "set not exist")
 		}
 	}
@@ -153,11 +160,11 @@ func SAreMembers(db *saveDBTables, args []string) Result {
 
 func SMembers(db *saveDBTables, args []string) Result {
 	key := args[0]
-	if _, ok := db.Set.M[key]; !ok {
+	if v := db.GetSet(key); v == nil {
 		return CreateStrResult(C_ERR, "set not exist")
 	}
 	records := make([]string, 0)
-	for k, _ := range db.Set.M[key] {
+	for k, _ := range db.GetSet(key).M {
 		records = append(records, k)
 	}
 	result := strings.Join(records, ",")
@@ -172,12 +179,12 @@ func SUnion(db *saveDBTables, args []string) Result {
 	key1 := args[0]
 	key2 := args[1]
 	record1s := make([]string, 0)
-	for k, _ := range db.Set.M[key1] {
+	for k, _ := range db.GetSet(key1).M {
 		record1s = append(record1s, k)
 	}
 	record2s := make([]string, 0)
-	for v, _ := range db.Set.M[key2] {
-		if _, ok := db.Set.M[key1][v]; !ok {
+	for v, _ := range db.GetSet(key2).M {
+		if _, ok := db.GetSet(key1).M[v]; !ok {
 			record2s = append(record2s, v)
 		}
 	}

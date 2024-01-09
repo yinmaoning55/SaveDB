@@ -2,6 +2,7 @@ package src
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -30,4 +31,8 @@ func TestPattern(t *testing.T) {
 
 	// 打印匹配的key
 	fmt.Printf("Keys matching the pattern '%s': %v\n", pattern, matchingKeys)
+}
+
+func Test111(t *testing.T) {
+	fmt.Println(strconv.FormatInt(time.Now().Unix(), 10))
 }

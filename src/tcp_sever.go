@@ -42,7 +42,7 @@ func StartTCPServer(port int) error {
 	SaveDBLogger.Infof("TCP Server started, Listen :%s", address)
 	conns := make(map[net.Conn]Connection)
 	TcpServer.Connections = conns
-	allRead := make(chan *Message)
+	allRead := make(chan *Message, 1024)
 	server.Read = allRead
 	go TcpServer.acceptConn(listener)
 	return nil
@@ -98,6 +98,9 @@ func (c *Connection) ConnClose() {
 
 func (c *Connection) ReadMsg() {
 	defer func() {
+		if r := recover(); r != nil {
+			SaveDBLogger.Errorf("AcceptConn  from panic:%v", r)
+		}
 		c.ConnClose()
 	}()
 	for {
@@ -188,6 +191,11 @@ type Message struct {
 }
 
 func onMessage(conn *net.Conn) {
+	defer func() {
+		if r := recover(); r != nil {
+			SaveDBLogger.Errorf("onMessage from panic:%v, conn=%v", r, (*conn).RemoteAddr())
+		}
+	}()
 	var connection = &Connection{}
 	w := make(chan *Message)
 	connection.Writer = w

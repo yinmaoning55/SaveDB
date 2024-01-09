@@ -1,18 +1,20 @@
 package src
 
 import (
+	"savedb/src/data"
 	"time"
+)
+
+const (
+	dataDictSize = 1 << 16
+	ttlDictSize  = 1 << 10
 )
 
 var db = &saveDBTables{}
 
 // 全局大表
 type saveDBTables struct {
-	Str
-	Hash
-	Set
-	List
-	ZSet
+	Data    *data.ConcurrentDict
 	Expires map[string]time.Time //带有过期的key统一管理
 	AllKeys                      //缓存淘汰
 }
@@ -25,12 +27,8 @@ type SaveObject struct {
 }
 
 func CreateSaveDB() {
-	db.Str = *NewString()
+	db.Data = data.MakeConcurrent(dataDictSize)
 	db.Expires = make(map[string]time.Time)
-	db.Set = *NewSet()
-	db.Hash = *NewHash()
-	db.List = *NewList()
-	db.ZSet = *NewZSet()
 	db.AllKeys = NewLKeys()
 }
 func NewSaveObject(key *string, keyType byte) *SaveObject {
@@ -41,6 +39,29 @@ func NewSaveObject(key *string, keyType byte) *SaveObject {
 	}
 	return o
 }
+
+//func BGSaveRDB(db *saveDBTables, args [][]byte) Result {
+//	if db.persister == nil {
+//		return protocol.MakeErrReply("please enable aof before using save")
+//	}
+//	go func() {
+//		defer func() {
+//			if err := recover(); err != nil {
+//				logger.Error(err)
+//			}
+//		}()
+//		rdbFilename := config.Properties.RDBFilename
+//		if rdbFilename == "" {
+//			rdbFilename = "dump.rdb"
+//		}
+//		err := db.persister.GenerateRDB(rdbFilename)
+//		if err != nil {
+//			logger.Error(err)
+//		}
+//	}()
+//	return protocol.MakeStatusReply("Background saving started")
+//}
+
 func InitCommand() {
 	saveCommandMap = make(map[string]saveDBCommand)
 	saveCommandMap["get"] = saveDBCommand{name: "get", saveCommandProc: Get, arity: 1}
