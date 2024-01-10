@@ -132,7 +132,7 @@ func (c *Connection) ReadMsg() {
 			continue
 		}
 		//非法参数长度直接返回错误
-		if len(words)-1 < com.arity {
+		if com.arity > 0 && len(words)-1 != com.arity {
 			ReturnErr("command error", c)
 			continue
 		}
@@ -143,7 +143,10 @@ func (c *Connection) ReadMsg() {
 			Args:    args,
 		}
 		commandFunc := saveCommandMap[*msg.Command]
-		readKeys, writeKeys := commandFunc.funcKeys(msg.Args)
+		var readKeys, writeKeys []string
+		if commandFunc.funcKeys != nil {
+			readKeys, writeKeys = commandFunc.funcKeys(msg.Args)
+		}
 		Server.Db.Locks(readKeys, writeKeys)
 		wMsg := createWriterMsg(commandFunc.saveCommandProc(Server.Db, msg.Args))
 		//写回

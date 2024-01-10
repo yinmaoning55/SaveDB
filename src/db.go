@@ -78,11 +78,17 @@ func NewSaveObject(key *string, keyType byte) *SaveObject {
 //}
 
 func (db *saveDBTables) Locks(readKeys, writeKeys []string) {
+	if readKeys == nil && writeKeys == nil {
+		return
+	}
 	db.Data.RWLocks(writeKeys, readKeys)
 }
 
-func (db *saveDBTables) UnLocks(readKeys, writerKeys []string) {
-	db.Data.RWUnLocks(writerKeys, readKeys)
+func (db *saveDBTables) UnLocks(readKeys, writeKeys []string) {
+	if readKeys == nil && writeKeys == nil {
+		return
+	}
+	db.Data.RWUnLocks(writeKeys, readKeys)
 }
 
 func InitCommand() {

@@ -84,6 +84,7 @@ func Keys(db *saveDBTables, args []string) Result {
 			matchingKeys = append(matchingKeys, key)
 		}
 	}
+	iter.Release()
 	res := strings.Join(matchingKeys, ",")
 	return CreateStrResult(C_OK, res)
 }
