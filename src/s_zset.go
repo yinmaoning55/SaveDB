@@ -1,6 +1,7 @@
 package src
 
 import (
+	"fmt"
 	"math"
 	"savedb/src/data"
 	"strconv"
@@ -16,24 +17,30 @@ func NewZSet() *ZSet {
 	z.Z = data.MakeSortedSet()
 	return z
 }
-func (db *saveDBTables) GetOrCreateZSet(key string) *ZSet {
-	val, ok := db.Data.Get(key)
+func (db *saveDBTables) GetOrCreateZSet(key string) (*ZSet, error) {
+	val, ok := db.Data.GetWithLock(key)
 	if !ok {
 		val = NewZSet()
 		db.AllKeys.PutKey(key, TypeZSet)
-		db.Data.Put(key, val)
-		return val.(*ZSet)
+		db.Data.PutWithLock(key, val)
+		return val.(*ZSet), nil
 	}
-	return val.(*ZSet)
+	if _, ok := val.(*ZSet); !ok {
+		return nil, fmt.Errorf("type conversion error")
+	}
+	return val.(*ZSet), nil
 }
 
-func (db *saveDBTables) GetZSet(key string) *ZSet {
-	val, ok := db.Data.Get(key)
+func (db *saveDBTables) GetZSet(key string) (*ZSet, error) {
+	val, ok := db.Data.GetWithLock(key)
 	if !ok {
-		return nil
+		return nil, nil
+	}
+	if _, ok := val.(*ZSet); !ok {
+		return nil, fmt.Errorf("type conversion error")
 	}
 	db.AllKeys.ActivateKey(key)
-	return val.(*ZSet)
+	return val.(*ZSet), nil
 }
 
 func ZAdd(db *saveDBTables, args []string) Result {
@@ -57,8 +64,10 @@ func ZAdd(db *saveDBTables, args []string) Result {
 	}
 
 	// get or init entity
-	sortedSet := db.GetOrCreateZSet(key)
-
+	sortedSet, err := db.GetOrCreateZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	i := 0
 	for _, e := range elements {
 		if sortedSet.Z.Add(e.Member, e.Score) {
@@ -79,7 +88,10 @@ func ZScore(db *saveDBTables, args []string) Result {
 	key := args[0]
 	member := args[1]
 
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -98,7 +110,10 @@ func ZRank(db *saveDBTables, args []string) Result {
 	member := args[1]
 
 	// get entity
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -116,7 +131,10 @@ func ZRevRank(db *saveDBTables, args []string) Result {
 	member := args[1]
 
 	// get entity
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -134,7 +152,10 @@ func ZCard(db *saveDBTables, args []string) Result {
 	key := args[0]
 
 	// get entity
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -193,7 +214,10 @@ func ZRevRange(db *saveDBTables, args []string) Result {
 
 func range0(db *saveDBTables, key string, start int64, stop int64, withScores bool, desc bool) Result {
 	// get data
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -259,7 +283,10 @@ func ZCount(db *saveDBTables, args []string) Result {
 	}
 
 	// get data
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -268,7 +295,10 @@ func ZCount(db *saveDBTables, args []string) Result {
 }
 
 func rangeByScore0(db *saveDBTables, key string, min data.Border, max data.Border, offset int64, limit int64, withScores bool, desc bool) Result {
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -405,7 +435,10 @@ func ZRemRangeByScore(db *saveDBTables, args []string) Result {
 	if err != nil {
 		return CreateStrResult(C_ERR, err.Error())
 	}
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -428,7 +461,10 @@ func ZRemRangeByRank(db *saveDBTables, args []string) Result {
 		return CreateStrResult(C_ERR, "ERR value is not an integer or out of range")
 	}
 
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -474,7 +510,10 @@ func ZPopMin(db *saveDBTables, args []string) Result {
 		}
 	}
 
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -503,7 +542,10 @@ func ZRem(db *saveDBTables, args []string) Result {
 	}
 
 	// get entity
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -530,7 +572,10 @@ func ZIncrBy(db *saveDBTables, args []string) Result {
 	}
 
 	// get or init entity
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -549,7 +594,10 @@ func ZIncrBy(db *saveDBTables, args []string) Result {
 
 func ZLexCount(db *saveDBTables, args []string) Result {
 	key := args[0]
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -579,7 +627,10 @@ func ZRangeByLex(db *saveDBTables, args []string) Result {
 	}
 
 	key := args[0]
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -633,7 +684,10 @@ func ZRemRangeByLex(db *saveDBTables, args []string) Result {
 	}
 
 	key := args[0]
-	sortedSet := db.GetZSet(key)
+	sortedSet, err := db.GetZSet(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if sortedSet == nil {
 		return CreateStrResult(C_ERR, "zSet is exists")
 	}
@@ -651,61 +705,4 @@ func ZRemRangeByLex(db *saveDBTables, args []string) Result {
 	count := sortedSet.Z.RemoveRange(min, max)
 
 	return CreateStrResult(C_OK, strconv.FormatInt(count, 10))
-}
-
-func ZRevRangeByLex(db *saveDBTables, args []string) Result {
-	n := len(args)
-	if n > 3 && strings.ToLower(args[3]) != "limit" {
-		return CreateStrResult(C_ERR, "ERR syntax error")
-	}
-	if n != 3 && n != 6 {
-		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'zrangebylex' command")
-	}
-
-	key := args[0]
-	sortedSet := db.GetZSet(key)
-	if sortedSet == nil {
-		return CreateStrResult(C_ERR, "zSet is exists")
-	}
-
-	minEle, maxEle := args[2], args[1]
-	min, err := data.ParseLexBorder(minEle)
-	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
-	}
-	max, err := data.ParseLexBorder(maxEle)
-	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
-	}
-
-	offset := int64(0)
-	limitCnt := int64(math.MaxInt64)
-	if n > 3 {
-		var err error
-		offset, err = strconv.ParseInt(string(args[4]), 10, 64)
-		if err != nil {
-			return CreateStrResult(C_ERR, err.Error())
-		}
-		if offset < 0 {
-			return CreateResult(C_OK, nil)
-		}
-		count, err := strconv.ParseInt(string(args[5]), 10, 64)
-		if err != nil {
-			return CreateStrResult(C_ERR, "ERR value is not an integer or out of range")
-		}
-		if count >= 0 {
-			limitCnt = count
-		}
-	}
-
-	elements := sortedSet.Z.Range(min, max, offset, limitCnt, true)
-	result := make([]string, 0, len(elements))
-	for _, ele := range elements {
-		result = append(result, ele.Member)
-	}
-	if len(result) == 0 {
-		return CreateResult(C_OK, nil)
-	}
-	res := strings.Join(result, ",")
-	return CreateStrResult(C_OK, res)
 }

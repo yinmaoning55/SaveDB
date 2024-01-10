@@ -22,15 +22,6 @@ type TCPServer struct {
 	Close       atomic.Bool
 }
 
-var saveCommandMap map[string]saveDBCommand
-
-// 所有的命令 基本上和redis一样
-type saveDBCommand struct {
-	name            string                                       //参数名字
-	saveCommandProc func(db *saveDBTables, args []string) Result //执行的函数
-	arity           int                                          //参数个数
-}
-
 func StartTCPServer(port int) error {
 	address := ":" + strconv.Itoa(port)
 	var lc net.ListenConfig
@@ -43,8 +34,6 @@ func StartTCPServer(port int) error {
 	log.SaveDBLogger.Infof("TCP Server started, Listen :%s", address)
 	conns := make(map[net.Conn]Connection)
 	TcpServer.Connections = conns
-	allRead := make(chan *Message, 1024)
-	server.Read = allRead
 	go TcpServer.acceptConn(listener)
 	return nil
 }
@@ -100,7 +89,7 @@ func (c *Connection) ConnClose() {
 func (c *Connection) ReadMsg() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.SaveDBLogger.Errorf("AcceptConn  from panic:%v", r)
+			log.SaveDBLogger.Errorf("read error from panic:%v", r)
 		}
 		c.ConnClose()
 	}()
@@ -153,7 +142,13 @@ func (c *Connection) ReadMsg() {
 			Command: &command,
 			Args:    args,
 		}
-		server.Read <- msg
+		commandFunc := saveCommandMap[*msg.Command]
+		readKeys, writeKeys := commandFunc.funcKeys(msg.Args)
+		Server.Db.Locks(readKeys, writeKeys)
+		wMsg := createWriterMsg(commandFunc.saveCommandProc(Server.Db, msg.Args))
+		//写回
+		c.Writer <- wMsg
+		Server.Db.UnLocks(readKeys, writeKeys)
 	}
 }
 
@@ -227,11 +222,8 @@ func ReturnErr(str string, c *Connection) {
 	msg := createWriterMsg(CreateStrResult(C_ERR, str))
 	c.Writer <- msg
 }
-func createReadMsg() {
 
-}
-
-var Config *serverConfig = &serverConfig{}
+var Config = &serverConfig{}
 
 type serverConfig struct {
 	Port int            `yaml:"port"`
@@ -252,48 +244,8 @@ func (config *serverConfig) LoadConfig(path string) {
 	config.Logs.DefaultLevel = "info"
 }
 
-var server = &saveServer{}
+var Server = &saveServer{}
 
 type saveServer struct {
-	Read chan *Message
-}
-
-func ReadInt(bs []byte) int32 {
-	u := binary.BigEndian.Uint32(bs)
-	return int32(u)
-}
-func Read2Byte(bs []byte) int16 {
-	u := binary.BigEndian.Uint16(bs)
-	return int16(u)
-}
-func writeInt32(bs []byte, pos int, v int32) {
-	binary.BigEndian.PutUint32(bs[pos:], uint32(v))
-}
-func writeInt64(bs []byte, pos int, v int64) {
-	binary.BigEndian.PutUint64(bs[pos:], uint64(v))
-}
-func MainGoroutine() {
-	defer func() {
-		if e := recover(); e != nil {
-			log.SaveDBLogger.Errorf("recover the panic:", e)
-		}
-	}()
-	for {
-		select {
-		case msg, ok := <-server.Read:
-			conn := TcpServer.Connections[*msg.Conn]
-			if !ok {
-				if conn.Close.Load() {
-					conn.ConnClose()
-				}
-			} else {
-				//逻辑处理
-				command := saveCommandMap[*msg.Command]
-				//写回
-				wMsg := createWriterMsg(command.saveCommandProc(db, msg.Args))
-				TcpServer.Connections[*msg.Conn].Writer <- wMsg
-			}
-		}
-	}
-
+	Db *saveDBTables
 }

@@ -39,17 +39,18 @@ func Expire(db *saveDBTables, args []string) Result {
 	expireAt := time.Now().Add(ttl)
 	db.Expires[key] = expireAt
 	timewheel.AddTimer(expireAt, key, func() {
-		DelExpireKey(args)
+		keys := make([]string, 0)
+		keys = append(keys, key)
+		db.Locks(nil, keys)
+		defer func() {
+			db.UnLocks(nil, keys)
+		}()
+		db.Locks(nil, keys)
+		Del(db, args)
 	})
 	return CreateStrResult(C_OK, OK_STR)
 }
 
-// 发送到主协程处理
-func DelExpireKey(args []string) {
-	command := "delete"
-	msg := &Message{Command: &command, Args: args}
-	server.Read <- msg
-}
 func TTL(db *saveDBTables, args []string) Result {
 	key := args[0]
 	value, ok := db.Expires[key]
@@ -61,13 +62,14 @@ func TTL(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.Itoa(int(ttl)))
 }
 
-func Delete(db *saveDBTables, args []string) Result {
-	key := args[0]
-	if !db.AllKeys.Exist(key) {
-		return CreateStrResult(C_ERR, "key not exist")
+func Del(db *saveDBTables, args []string) Result {
+	for _, k := range args {
+		if !db.AllKeys.Exist(k) {
+			continue
+		}
+		db.Data.RemoveWithLock(k)
+		db.AllKeys.RemoveKey(db, k)
 	}
-	db.Data.Remove(key)
-	db.AllKeys.RemoveKey(db, key)
 	return CreateStrResult(C_OK, OK_STR)
 }
 
@@ -85,6 +87,16 @@ func Keys(db *saveDBTables, args []string) Result {
 	res := strings.Join(matchingKeys, ",")
 	return CreateStrResult(C_OK, res)
 }
+
+func Exists(db *saveDBTables, args []string) Result {
+	_, ok := db.Data.GetWithLock(args[0])
+	if ok {
+		return CreateStrResult(C_OK, "1")
+	} else {
+		return CreateStrResult(C_OK, "0")
+	}
+}
+
 func findMatchingKeys(inputMap map[string]string, pattern string) []string {
 	pattern = strings.ReplaceAll(pattern, "*", ".*")
 	var matchingKeys []string
@@ -114,6 +126,7 @@ func (a *AllKeys) RemoveKey(db *saveDBTables, key string) {
 	delete(db.Expires, key)
 }
 
+// key缓存命中
 func (a *AllKeys) ActivateKey(key string) {
 	ki := &keyItem{
 		key: StringToBytes(key),

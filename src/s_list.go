@@ -16,29 +16,38 @@ func NewList() *List {
 	l.L = data.NewQuickList()
 	return l
 }
-func (db *saveDBTables) GetOrCreateList(key string) *List {
-	val, ok := db.Data.Get(key)
+func (db *saveDBTables) GetOrCreateList(key string) (*List, error) {
+	val, ok := db.Data.GetWithLock(key)
 	if !ok {
 		val = NewList()
 		db.AllKeys.PutKey(key, TypeList)
-		db.Data.Put(key, val)
-		return val.(*List)
+		db.Data.PutWithLock(key, val)
+		return val.(*List), nil
 	}
-	return val.(*List)
+	if _, ok := val.(*List); !ok {
+		return nil, fmt.Errorf("type conversion error")
+	}
+	return val.(*List), nil
 }
 
-func (db *saveDBTables) GetList(key string) *List {
-	val, ok := db.Data.Get(key)
+func (db *saveDBTables) GetList(key string) (*List, error) {
+	val, ok := db.Data.GetWithLock(key)
 	if !ok {
-		return nil
+		return nil, nil
+	}
+	if _, ok := val.(*List); !ok {
+		return nil, fmt.Errorf("type conversion error")
 	}
 	db.AllKeys.ActivateKey(key)
-	return val.(*List)
+	return val.(*List), nil
 }
 func LLen(db *saveDBTables, args []string) Result {
 	key := args[0]
 
-	list := db.GetList(key)
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
@@ -50,13 +59,16 @@ func LPop(db *saveDBTables, args []string) Result {
 	key := args[0]
 
 	// get data
-	list := db.GetList(key)
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
 	val, _ := list.L.Remove(0).(string)
 	if list.L.Len() == 0 {
-		Delete(db, args)
+		Del(db, args)
 	}
 	return CreateStrResult(C_OK, val)
 }
@@ -65,7 +77,10 @@ func LPush(db *saveDBTables, args []string) Result {
 	key := args[0]
 	values := args[1:]
 
-	list := db.GetOrCreateList(key)
+	list, err := db.GetOrCreateList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	// insert
 	for _, value := range values {
 		list.L.Insert(0, value)
@@ -78,7 +93,10 @@ func LPushX(db *saveDBTables, args []string) Result {
 	values := args[1:]
 
 	// get or init entity
-	list := db.GetList(key)
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
@@ -104,7 +122,10 @@ func LRange(db *saveDBTables, args []string) Result {
 	stop := int(stop64)
 
 	// get data
-	list := db.GetList(key)
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
@@ -153,7 +174,10 @@ func LRem(db *saveDBTables, args []string) Result {
 	count := int(count64)
 	value := args[2]
 
-	list := db.GetList(key)
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
@@ -174,7 +198,7 @@ func LRem(db *saveDBTables, args []string) Result {
 	}
 
 	if list.L.Len() == 0 {
-		Delete(db, args)
+		Del(db, args)
 	}
 	if removed > 0 {
 		//aof
@@ -194,7 +218,10 @@ func LSet(db *saveDBTables, args []string) Result {
 	index := int(index64)
 	value := args[2]
 	// get data
-	list := db.GetList(key)
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
@@ -221,7 +248,10 @@ func RPop(db *saveDBTables, args []string) Result {
 	key := args[0]
 
 	// get data
-	list := db.GetList(key)
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
@@ -231,7 +261,7 @@ func RPop(db *saveDBTables, args []string) Result {
 
 	val, _ := list.L.RemoveLast().(string)
 	if list.L.Len() == 0 {
-		Delete(db, args)
+		Del(db, args)
 	}
 	//aof
 
@@ -243,13 +273,19 @@ func RPopLPush(db *saveDBTables, args []string) Result {
 	destKey := args[1]
 
 	// get source entity
-	list := db.GetList(sourceKey)
+	list, err := db.GetList(sourceKey)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
 
 	// get dest entity
-	destList := db.GetList(destKey)
+	destList, err := db.GetList(destKey)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if destList == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
@@ -261,7 +297,7 @@ func RPopLPush(db *saveDBTables, args []string) Result {
 	destList.L.Insert(0, val)
 
 	if list.L.Len() == 0 {
-		Delete(db, args)
+		Del(db, args)
 	}
 
 	return CreateStrResult(C_OK, val)
@@ -273,7 +309,10 @@ func RPush(db *saveDBTables, args []string) Result {
 	values := args[1:]
 
 	// get or init entity
-	list := db.GetList(key)
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
@@ -292,7 +331,10 @@ func RPushX(db *saveDBTables, args []string) Result {
 	values := args[1:]
 
 	// get or init entity
-	list := db.GetList(key)
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
@@ -318,12 +360,12 @@ func LTrim(db *saveDBTables, args []string) Result {
 	if err != nil {
 		return CreateStrResult(C_ERR, "ERR value is not an integer or out of range")
 	}
-	list := db.GetList(key)
-	if list == nil {
-		return CreateStrResult(C_ERR, "list not exist")
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
 	}
 	if list == nil {
-		return CreateStrResult(C_ERR, "list is null")
+		return CreateStrResult(C_ERR, "list not exist")
 	}
 	length := list.L.Len()
 	if start < 0 {
@@ -351,12 +393,15 @@ func LInsert(db *saveDBTables, args []string) Result {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'linsert' command")
 	}
 	key := args[0]
-	list := db.GetList(key)
+	list, err := db.GetList(key)
+	if err != nil {
+		return CreateStrResult(C_ERR, err.Error())
+	}
 	if list == nil {
 		return CreateStrResult(C_ERR, "list not exist")
 	}
 
-	dir := strings.ToLower(string(args[1]))
+	dir := strings.ToLower(args[1])
 	if dir != "before" && dir != "after" {
 		return CreateStrResult(C_ERR, "ERR syntax error")
 	}

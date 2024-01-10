@@ -34,5 +34,11 @@ func TestPattern(t *testing.T) {
 }
 
 func Test111(t *testing.T) {
+	fmt.Println("111111")
+
+	fmt.Println("2222222")
 	fmt.Println(strconv.FormatInt(time.Now().Unix(), 10))
+	defer func() {
+		fmt.Println("defer")
+	}()
 }
