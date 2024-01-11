@@ -1,6 +1,6 @@
 package src
 
-func Get(db *saveDBTables, args []string) Result {
+func Get(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	s, ok := db.Data.GetWithLock(key)
 	if ok {
@@ -13,7 +13,7 @@ func Get(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_ERR, "key not exist")
 }
 
-func SetExc(db *saveDBTables, arg []string) Result {
+func SetExc(db *SaveDBTables, arg []string) Result {
 	db.Data.PutWithLock(arg[0], &arg[1])
 	db.AllKeys.PutKey(arg[0], TypeStr)
 	return CreateResult(C_OK, StringToBytes(OK_STR))

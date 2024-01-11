@@ -17,7 +17,7 @@ func NewZSet() *ZSet {
 	z.Z = data.MakeSortedSet()
 	return z
 }
-func (db *saveDBTables) GetOrCreateZSet(key string) (*ZSet, error) {
+func (db *SaveDBTables) GetOrCreateZSet(key string) (*ZSet, error) {
 	val, ok := db.Data.GetWithLock(key)
 	if !ok {
 		val = NewZSet()
@@ -31,7 +31,7 @@ func (db *saveDBTables) GetOrCreateZSet(key string) (*ZSet, error) {
 	return val.(*ZSet), nil
 }
 
-func (db *saveDBTables) GetZSet(key string) (*ZSet, error) {
+func (db *SaveDBTables) GetZSet(key string) (*ZSet, error) {
 	val, ok := db.Data.GetWithLock(key)
 	if !ok {
 		return nil, nil
@@ -43,7 +43,7 @@ func (db *saveDBTables) GetZSet(key string) (*ZSet, error) {
 	return val.(*ZSet), nil
 }
 
-func ZAdd(db *saveDBTables, args []string) Result {
+func ZAdd(db *SaveDBTables, args []string) Result {
 	if len(args)%2 != 1 {
 		return CreateStrResult(C_ERR, "syntax err")
 	}
@@ -83,7 +83,7 @@ func ZAdd(db *saveDBTables, args []string) Result {
 }
 
 // execZScore gets score of a member in sortedset
-func ZScore(db *saveDBTables, args []string) Result {
+func ZScore(db *SaveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
 	member := args[1]
@@ -104,7 +104,7 @@ func ZScore(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, value)
 }
 
-func ZRank(db *saveDBTables, args []string) Result {
+func ZRank(db *SaveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
 	member := args[1]
@@ -125,7 +125,7 @@ func ZRank(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.FormatInt(rank, 10))
 }
 
-func ZRevRank(db *saveDBTables, args []string) Result {
+func ZRevRank(db *SaveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
 	member := args[1]
@@ -147,7 +147,7 @@ func ZRevRank(db *saveDBTables, args []string) Result {
 }
 
 // execZCard gets number of members in sortedset
-func ZCard(db *saveDBTables, args []string) Result {
+func ZCard(db *SaveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
 
@@ -163,7 +163,7 @@ func ZCard(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.FormatInt(sortedSet.Z.Len(), 10))
 }
 
-func ZRange(db *saveDBTables, args []string) Result {
+func ZRange(db *SaveDBTables, args []string) Result {
 	// parse args
 	if len(args) != 3 && len(args) != 4 {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'zrange' command")
@@ -188,7 +188,7 @@ func ZRange(db *saveDBTables, args []string) Result {
 }
 
 // execZRevRange gets members in range, sort by score in descending order
-func ZRevRange(db *saveDBTables, args []string) Result {
+func ZRevRange(db *SaveDBTables, args []string) Result {
 	// parse args
 	if len(args) != 3 && len(args) != 4 {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'zrevrange' command")
@@ -212,7 +212,7 @@ func ZRevRange(db *saveDBTables, args []string) Result {
 	return range0(db, key, start, stop, withScores, true)
 }
 
-func range0(db *saveDBTables, key string, start int64, stop int64, withScores bool, desc bool) Result {
+func range0(db *SaveDBTables, key string, start int64, stop int64, withScores bool, desc bool) Result {
 	// get data
 	sortedSet, err := db.GetZSet(key)
 	if err != nil {
@@ -269,7 +269,7 @@ func range0(db *saveDBTables, key string, start int64, stop int64, withScores bo
 	return CreateStrResult(C_OK, res)
 }
 
-func ZCount(db *saveDBTables, args []string) Result {
+func ZCount(db *SaveDBTables, args []string) Result {
 	key := args[0]
 
 	min, err := data.ParseScoreBorder(args[1])
@@ -294,7 +294,7 @@ func ZCount(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.FormatInt(sortedSet.Z.RangeCount(min, max), 10))
 }
 
-func rangeByScore0(db *saveDBTables, key string, min data.Border, max data.Border, offset int64, limit int64, withScores bool, desc bool) Result {
+func rangeByScore0(db *SaveDBTables, key string, min data.Border, max data.Border, offset int64, limit int64, withScores bool, desc bool) Result {
 	sortedSet, err := db.GetZSet(key)
 	if err != nil {
 		return CreateStrResult(C_ERR, err.Error())
@@ -328,7 +328,7 @@ func rangeByScore0(db *saveDBTables, key string, min data.Border, max data.Borde
 }
 
 // execZRangeByScore gets members which score within given range, in ascending order
-func ZRangeByScore(db *saveDBTables, args []string) Result {
+func ZRangeByScore(db *SaveDBTables, args []string) Result {
 	if len(args) < 3 {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'zrangebyscore' command")
 	}
@@ -374,7 +374,7 @@ func ZRangeByScore(db *saveDBTables, args []string) Result {
 	return rangeByScore0(db, key, min, max, offset, limit, withScores, false)
 }
 
-func ZRevRangeByScore(db *saveDBTables, args []string) Result {
+func ZRevRangeByScore(db *SaveDBTables, args []string) Result {
 	if len(args) < 3 {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'zrangebyscore' command")
 	}
@@ -420,7 +420,7 @@ func ZRevRangeByScore(db *saveDBTables, args []string) Result {
 	return rangeByScore0(db, key, min, max, offset, limit, withScores, true)
 }
 
-func ZRemRangeByScore(db *saveDBTables, args []string) Result {
+func ZRemRangeByScore(db *SaveDBTables, args []string) Result {
 	if len(args) != 3 {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'zremrangebyscore' command")
 	}
@@ -450,7 +450,7 @@ func ZRemRangeByScore(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.FormatInt(removed, 10))
 }
 
-func ZRemRangeByRank(db *saveDBTables, args []string) Result {
+func ZRemRangeByRank(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	start, err := strconv.ParseInt(args[1], 10, 64)
 	if err != nil {
@@ -499,7 +499,7 @@ func ZRemRangeByRank(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.FormatInt(removed, 10))
 }
 
-func ZPopMin(db *saveDBTables, args []string) Result {
+func ZPopMin(db *SaveDBTables, args []string) Result {
 	key := string(args[0])
 	count := 1
 	if len(args) > 1 {
@@ -532,7 +532,7 @@ func ZPopMin(db *saveDBTables, args []string) Result {
 }
 
 // execZRem removes given members
-func ZRem(db *saveDBTables, args []string) Result {
+func ZRem(db *SaveDBTables, args []string) Result {
 	// parse args
 	key := string(args[0])
 	fields := make([]string, len(args)-1)
@@ -562,7 +562,7 @@ func ZRem(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.FormatInt(deleted, 10))
 }
 
-func ZIncrBy(db *saveDBTables, args []string) Result {
+func ZIncrBy(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	rawDelta := args[1]
 	field := args[2]
@@ -592,7 +592,7 @@ func ZIncrBy(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.FormatFloat(score, 'f', -1, 64))
 }
 
-func ZLexCount(db *saveDBTables, args []string) Result {
+func ZLexCount(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	sortedSet, err := db.GetZSet(key)
 	if err != nil {
@@ -617,7 +617,7 @@ func ZLexCount(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.FormatInt(count, 10))
 }
 
-func ZRangeByLex(db *saveDBTables, args []string) Result {
+func ZRangeByLex(db *SaveDBTables, args []string) Result {
 	n := len(args)
 	if n > 3 && strings.ToLower(args[3]) != "limit" {
 		return CreateStrResult(C_ERR, "ERR syntax error")
@@ -677,7 +677,7 @@ func ZRangeByLex(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, res)
 }
 
-func ZRemRangeByLex(db *saveDBTables, args []string) Result {
+func ZRemRangeByLex(db *SaveDBTables, args []string) Result {
 	n := len(args)
 	if n != 3 {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'zremrangebylex' command")

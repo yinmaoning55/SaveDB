@@ -26,7 +26,7 @@ func NewLKeys() AllKeys {
 	}
 	return keys
 }
-func Expire(db *saveDBTables, args []string) Result {
+func Expire(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	expire, err := strconv.ParseInt(args[1], 10, 64)
 	if err != nil {
@@ -51,7 +51,7 @@ func Expire(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, OK_STR)
 }
 
-func TTL(db *saveDBTables, args []string) Result {
+func TTL(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	value, ok := db.Expires[key]
 	if !ok {
@@ -62,7 +62,7 @@ func TTL(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.Itoa(int(ttl)))
 }
 
-func Del(db *saveDBTables, args []string) Result {
+func Del(db *SaveDBTables, args []string) Result {
 	for _, k := range args {
 		if !db.AllKeys.Exist(k) {
 			continue
@@ -73,7 +73,7 @@ func Del(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, OK_STR)
 }
 
-func Keys(db *saveDBTables, args []string) Result {
+func Keys(db *SaveDBTables, args []string) Result {
 	pattern := strings.ReplaceAll(args[0], "*", ".*")
 	var matchingKeys []string
 	re := regexp.MustCompile(pattern)
@@ -89,7 +89,7 @@ func Keys(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, res)
 }
 
-func Exists(db *saveDBTables, args []string) Result {
+func Exists(db *SaveDBTables, args []string) Result {
 	_, ok := db.Data.GetWithLock(args[0])
 	if ok {
 		return CreateStrResult(C_OK, "1")
@@ -119,7 +119,7 @@ func (a *AllKeys) PutKey(key string, keyType byte) {
 	a.keys.Set(ki)
 }
 
-func (a *AllKeys) RemoveKey(db *saveDBTables, key string) {
+func (a *AllKeys) RemoveKey(db *SaveDBTables, key string) {
 	ki := &keyItem{
 		key: StringToBytes(key),
 	}

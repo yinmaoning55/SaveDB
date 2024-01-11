@@ -22,7 +22,7 @@ func NewSet() *Set {
 	return s
 }
 
-func (db *saveDBTables) GetOrCreateSet(key string) (*Set, error) {
+func (db *SaveDBTables) GetOrCreateSet(key string) (*Set, error) {
 	val, ok := db.Data.GetWithLock(key)
 	if !ok {
 		val = NewSet()
@@ -36,7 +36,7 @@ func (db *saveDBTables) GetOrCreateSet(key string) (*Set, error) {
 	return val.(*Set), nil
 }
 
-func (db *saveDBTables) GetSet(key string) (*Set, error) {
+func (db *SaveDBTables) GetSet(key string) (*Set, error) {
 	val, ok := db.Data.GetWithLock(key)
 	if !ok {
 		return nil, nil
@@ -48,7 +48,7 @@ func (db *saveDBTables) GetSet(key string) (*Set, error) {
 	return val.(*Set), nil
 }
 
-func SAdd(db *saveDBTables, args []string) Result {
+func SAdd(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	set, err := db.GetOrCreateSet(key)
 	if err != nil {
@@ -61,7 +61,7 @@ func SAdd(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.Itoa(len(args[1:])))
 }
 
-func SMove(db *saveDBTables, args []string) Result {
+func SMove(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	set, err := db.GetSet(key)
 	if err != nil {
@@ -82,7 +82,7 @@ func SMove(db *saveDBTables, args []string) Result {
 
 }
 
-func SHasKey(db *saveDBTables, args []string) Result {
+func SHasKey(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	v, err := db.GetSet(key)
 	if err != nil {
@@ -94,7 +94,7 @@ func SHasKey(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, "1")
 }
 
-func SPop(db *saveDBTables, args []string) Result {
+func SPop(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	res := SHasKey(db, args)
 	if res.Status != 1 {
@@ -116,7 +116,7 @@ func SPop(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_ERR, "value inexistence")
 }
 
-func SCard(db *saveDBTables, args []string) Result {
+func SCard(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	res := SHasKey(db, args)
 	if res.Status != 1 {
@@ -130,7 +130,7 @@ func SCard(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.Itoa(len(v.M)))
 }
 
-func SDiff(db *saveDBTables, args []string) Result {
+func SDiff(db *SaveDBTables, args []string) Result {
 	if (SHasKey(db, args[:1]).Status != C_OK) || (SHasKey(db, args[1:]).Status != C_OK) {
 		return CreateStrResult(C_ERR, "set not exist")
 	}
@@ -160,7 +160,7 @@ func SDiff(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, result)
 }
 
-func SInter(db *saveDBTables, args []string) Result {
+func SInter(db *SaveDBTables, args []string) Result {
 	if SHasKey(db, args[:1]).Status != C_OK || SHasKey(db, args[1:]).Status != C_OK {
 		return CreateStrResult(C_ERR, "set not exist")
 	}
@@ -190,7 +190,7 @@ func SInter(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, result)
 }
 
-func SIsMember(db *saveDBTables, args []string) Result {
+func SIsMember(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	set, err := db.GetSet(key)
 	if err != nil {
@@ -207,7 +207,7 @@ func SIsMember(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_ERR, "set not exist")
 }
 
-func SAreMembers(db *saveDBTables, args []string) Result {
+func SAreMembers(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	set, err := db.GetSet(key)
 	if err != nil {
@@ -226,7 +226,7 @@ func SAreMembers(db *saveDBTables, args []string) Result {
 	return CreateResult(C_OK, nil)
 }
 
-func SMembers(db *saveDBTables, args []string) Result {
+func SMembers(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	set, err := db.GetSet(key)
 	if err != nil {
@@ -243,7 +243,7 @@ func SMembers(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, result)
 }
 
-func SUnion(db *saveDBTables, args []string) Result {
+func SUnion(db *SaveDBTables, args []string) Result {
 	if SHasKey(db, args[:1]).Status != C_OK || SHasKey(db, args[1:]).Status != C_OK {
 		return CreateStrResult(C_ERR, "set not exist")
 	}

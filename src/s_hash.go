@@ -16,7 +16,7 @@ func NewHash() *Hash {
 	h.M = make(map[string]*string)
 	return h
 }
-func (db *saveDBTables) GetOrCreateHash(key string) (*Hash, error) {
+func (db *SaveDBTables) GetOrCreateHash(key string) (*Hash, error) {
 	val, ok := db.Data.GetWithLock(key)
 	if !ok {
 		val = NewHash()
@@ -29,7 +29,7 @@ func (db *saveDBTables) GetOrCreateHash(key string) (*Hash, error) {
 	}
 	return val.(*Hash), nil
 }
-func (db *saveDBTables) GetHash(key string) (*Hash, error) {
+func (db *SaveDBTables) GetHash(key string) (*Hash, error) {
 	val, ok := db.Data.GetWithLock(key)
 	if !ok {
 		return nil, nil
@@ -40,7 +40,7 @@ func (db *saveDBTables) GetHash(key string) (*Hash, error) {
 	db.AllKeys.ActivateKey(key)
 	return val.(*Hash), nil
 }
-func HmSet(db *saveDBTables, args []string) Result {
+func HmSet(db *SaveDBTables, args []string) Result {
 	if len(args)%2 != 1 {
 		return CreateStrResult(C_ERR, "args number error")
 	}
@@ -63,7 +63,7 @@ func HmSet(db *saveDBTables, args []string) Result {
 	return CreateResult(C_OK, []byte(strconv.Itoa(len(values))))
 }
 
-func HMGet(db *saveDBTables, args []string) Result {
+func HMGet(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	key2 := args[1]
 	// get entity
@@ -82,7 +82,7 @@ func HMGet(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, *value)
 }
 
-func HDel(db *saveDBTables, args []string) Result {
+func HDel(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	hash, err := db.GetHash(key)
 	if err != nil {
@@ -103,7 +103,7 @@ func HDel(db *saveDBTables, args []string) Result {
 	return CreateResult(C_OK, []byte(strconv.Itoa(len(args[1:]))))
 }
 
-func HExists(db *saveDBTables, args []string) Result {
+func HExists(db *SaveDBTables, args []string) Result {
 	key1 := args[0]
 	key2 := args[1]
 	v, err := db.GetHash(key1)
@@ -118,7 +118,7 @@ func HExists(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_ERR, "key inexistence")
 }
 
-func HCard(db *saveDBTables, args []string) Result {
+func HCard(db *SaveDBTables, args []string) Result {
 	if string(Exists(db, args).Res) != "1" {
 		return CreateStrResult(C_ERR, "key inexistence")
 	}
@@ -130,7 +130,7 @@ func HCard(db *saveDBTables, args []string) Result {
 	return CreateResult(C_OK, []byte(strconv.Itoa(len(v.M))))
 }
 
-func HGetAll(db *saveDBTables, args []string) Result {
+func HGetAll(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	v, err := db.GetHash(key)
 	if err != nil {

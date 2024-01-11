@@ -68,6 +68,7 @@ type Connection struct {
 	Read       chan *Message
 	Writer     chan *Message
 	RemoteAddr net.Addr
+	dbIndex    int
 }
 type OnConnection interface {
 	ConnOpen()
@@ -142,16 +143,7 @@ func (c *Connection) ReadMsg() {
 			Command: &command,
 			Args:    args,
 		}
-		commandFunc := saveCommandMap[*msg.Command]
-		var readKeys, writeKeys []string
-		if commandFunc.funcKeys != nil {
-			readKeys, writeKeys = commandFunc.funcKeys(msg.Args)
-		}
-		Server.Db.Locks(readKeys, writeKeys)
-		wMsg := createWriterMsg(commandFunc.saveCommandProc(Server.Db, msg.Args))
-		//写回
-		c.Writer <- wMsg
-		Server.Db.UnLocks(readKeys, writeKeys)
+		c.Exec(msg)
 	}
 }
 
@@ -201,6 +193,8 @@ func onMessage(conn *net.Conn) {
 	connection.Conn = *conn
 	var flag atomic.Bool
 	connection.Close = &flag
+	//默认0号数据库
+	connection.dbIndex = 0
 	TcpServer.Connections[*conn] = *connection
 	//先建立连接
 	connection.ConnOpen()
@@ -247,8 +241,19 @@ func (config *serverConfig) LoadConfig(path string) {
 	config.Logs.DefaultLevel = "info"
 }
 
-var Server = &saveServer{}
+var Server = &SaveServer{}
 
-type saveServer struct {
-	Db *saveDBTables
+type SaveServer struct {
+	Dbs []*atomic.Value
+}
+
+func FindDB(index int) *SaveDBTables {
+	return Server.Dbs[index].Load().(*SaveDBTables)
+}
+
+func SelectDB(index int, conn Connection) {
+	if index < 0 || index >= dbsSize {
+		return
+	}
+	conn.dbIndex = index
 }

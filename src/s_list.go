@@ -16,7 +16,7 @@ func NewList() *List {
 	l.L = data.NewQuickList()
 	return l
 }
-func (db *saveDBTables) GetOrCreateList(key string) (*List, error) {
+func (db *SaveDBTables) GetOrCreateList(key string) (*List, error) {
 	val, ok := db.Data.GetWithLock(key)
 	if !ok {
 		val = NewList()
@@ -30,7 +30,7 @@ func (db *saveDBTables) GetOrCreateList(key string) (*List, error) {
 	return val.(*List), nil
 }
 
-func (db *saveDBTables) GetList(key string) (*List, error) {
+func (db *SaveDBTables) GetList(key string) (*List, error) {
 	val, ok := db.Data.GetWithLock(key)
 	if !ok {
 		return nil, nil
@@ -41,7 +41,7 @@ func (db *saveDBTables) GetList(key string) (*List, error) {
 	db.AllKeys.ActivateKey(key)
 	return val.(*List), nil
 }
-func LLen(db *saveDBTables, args []string) Result {
+func LLen(db *SaveDBTables, args []string) Result {
 	key := args[0]
 
 	list, err := db.GetList(key)
@@ -55,7 +55,7 @@ func LLen(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.Itoa(size))
 }
 
-func LPop(db *saveDBTables, args []string) Result {
+func LPop(db *SaveDBTables, args []string) Result {
 	key := args[0]
 
 	// get data
@@ -73,7 +73,7 @@ func LPop(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, val)
 }
 
-func LPush(db *saveDBTables, args []string) Result {
+func LPush(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	values := args[1:]
 
@@ -88,7 +88,7 @@ func LPush(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }
 
-func LPushX(db *saveDBTables, args []string) Result {
+func LPushX(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	values := args[1:]
 
@@ -107,7 +107,7 @@ func LPushX(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.Itoa(len(values)))
 }
 
-func LRange(db *saveDBTables, args []string) Result {
+func LRange(db *SaveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
 	start64, err := strconv.ParseInt(string(args[1]), 10, 64)
@@ -164,7 +164,7 @@ func LRange(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, r)
 }
 
-func LRem(db *saveDBTables, args []string) Result {
+func LRem(db *SaveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
 	count64, err := strconv.ParseInt(args[1], 10, 64)
@@ -207,7 +207,7 @@ func LRem(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.Itoa(removed))
 }
 
-func LSet(db *saveDBTables, args []string) Result {
+func LSet(db *SaveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
 	index64, err := strconv.ParseInt(args[1], 10, 64)
@@ -243,7 +243,7 @@ func LSet(db *saveDBTables, args []string) Result {
 	return CreateResult(C_OK, nil)
 }
 
-func RPop(db *saveDBTables, args []string) Result {
+func RPop(db *SaveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
 
@@ -268,7 +268,7 @@ func RPop(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, val)
 }
 
-func RPopLPush(db *saveDBTables, args []string) Result {
+func RPopLPush(db *SaveDBTables, args []string) Result {
 	sourceKey := args[0]
 	destKey := args[1]
 
@@ -303,7 +303,7 @@ func RPopLPush(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, val)
 }
 
-func RPush(db *saveDBTables, args []string) Result {
+func RPush(db *SaveDBTables, args []string) Result {
 	// parse args
 	key := args[0]
 	values := args[1:]
@@ -323,7 +323,7 @@ func RPush(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }
 
-func RPushX(db *saveDBTables, args []string) Result {
+func RPushX(db *SaveDBTables, args []string) Result {
 	if len(args) < 2 {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'rpush' command")
 	}
@@ -346,7 +346,7 @@ func RPushX(db *saveDBTables, args []string) Result {
 	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }
 
-func LTrim(db *saveDBTables, args []string) Result {
+func LTrim(db *SaveDBTables, args []string) Result {
 	n := len(args)
 	if n != 3 {
 		return CreateStrResult(C_ERR, fmt.Sprintf("ERR wrong number of arguments (given %d, expected 3)", n))
@@ -387,7 +387,7 @@ func LTrim(db *saveDBTables, args []string) Result {
 	return CreateResult(C_OK, nil)
 }
 
-func LInsert(db *saveDBTables, args []string) Result {
+func LInsert(db *SaveDBTables, args []string) Result {
 	n := len(args)
 	if n != 4 {
 		return CreateStrResult(C_ERR, "ERR wrong number of arguments for 'linsert' command")
