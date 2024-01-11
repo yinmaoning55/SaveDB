@@ -201,7 +201,7 @@ func LRem(db *SaveDBTables, args []string) Result {
 		Del(db, args)
 	}
 	if removed > 0 {
-		//aof
+		//persistence
 	}
 
 	return CreateStrResult(C_OK, strconv.Itoa(removed))
@@ -263,7 +263,7 @@ func RPop(db *SaveDBTables, args []string) Result {
 	if list.L.Len() == 0 {
 		Del(db, args)
 	}
-	//aof
+	//persistence
 
 	return CreateStrResult(C_OK, val)
 }

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 )
 
 var TcpServer = &TCPServer{}
@@ -106,6 +107,7 @@ func (c *Connection) ReadMsg() {
 			}
 			return
 		}
+
 		var mlen int32
 		mlen = ReadInt(buff1)
 		bufd := bufData[MSG_BUFFER_OFFSET : mlen+MSG_BUFFER_OFFSET]
@@ -114,12 +116,14 @@ func (c *Connection) ReadMsg() {
 			log.SaveDBLogger.Errorf("Read data error %v, conn=%v", err, c.Conn.RemoteAddr())
 			return
 		}
+
 		//序列化指令格式为: command 参数1 参数2 参数3 ........
 		str := string(bufd)
 		if str == "" {
 			ReturnErr("command is null", c)
 			continue
 		}
+
 		words := strings.Fields(str)
 		command := words[0]
 		com, ok := saveCommandMap[command]
@@ -127,6 +131,7 @@ func (c *Connection) ReadMsg() {
 			log.SaveDBLogger.Infof("heart packet conn=%v", c.Conn.RemoteAddr())
 			continue
 		}
+
 		//非法格式直接返回错误
 		if !ok {
 			ReturnErr("command error", c)
@@ -138,12 +143,8 @@ func (c *Connection) ReadMsg() {
 			continue
 		}
 		args := words[1:]
-		msg := &Message{
-			Conn:    &c.Conn,
-			Command: &command,
-			Args:    args,
-		}
-		c.Exec(msg)
+		msg := CreateMsg(&c.Conn, command, args)
+		Server.Exec(c, msg)
 	}
 }
 
@@ -223,8 +224,12 @@ func ReturnErr(str string, c *Connection) {
 var Config = &serverConfig{}
 
 type serverConfig struct {
-	Port int            `yaml:"port"`
-	Logs *log.LogConfig `yaml:"logs"`
+	Port              int            `yaml:"port"`
+	Appendfsync       string         `yaml:"appendfsync"`
+	AofUseRdbPreamble bool           `yaml:"aof-use-rdb-preamble"`
+	Aofdir            string         `yaml:"aof-dir"`
+	RDBFilename       string         `yaml:"dbfilename"`
+	Logs              *log.LogConfig `yaml:"logs"`
 }
 
 func (config *serverConfig) LoadConfig(path string) {
@@ -247,13 +252,21 @@ type SaveServer struct {
 	Dbs []*atomic.Value
 }
 
+func (s SaveServer) ForEche(index int, cb func(key string, entity any, expiration *time.Time) bool) {
+	FindDB(index).ForEach(0, cb)
+}
 func FindDB(index int) *SaveDBTables {
 	return Server.Dbs[index].Load().(*SaveDBTables)
 }
 
-func SelectDB(index int, conn Connection) {
+func SelectDB(index int, conn *Connection) error {
 	if index < 0 || index >= dbsSize {
-		return
+		return fmt.Errorf("db index error")
 	}
 	conn.dbIndex = index
+	return nil
+}
+
+func InitServer() {
+
 }

@@ -16,4 +16,30 @@ const (
 	//和redis6.0一样
 	ZSKIPLIST_MAXLEVEL = 32
 	ZSKIPLIST_P        = 0.25
+	CRLF               = "\r\n"
 )
+
+type EmptyMultiBulkReply struct{}
+
+// ToBytes marshal redis.Reply
+func (r *EmptyMultiBulkReply) ToBytes() []byte {
+	return emptyMultiBulkBytes
+}
+
+// MakeEmptyMultiBulkReply creates EmptyMultiBulkReply
+func MakeEmptyMultiBulkReply() *EmptyMultiBulkReply {
+	return &EmptyMultiBulkReply{}
+}
+
+var emptyMultiBulkBytes = []byte("*0\r\n")
+
+func MakeNullBulkReply() *NullBulkReply {
+	return &NullBulkReply{}
+}
+
+type NullBulkReply struct{}
+
+func (n NullBulkReply) ToBytes() []byte {
+	//TODO implement me
+	panic("implement me")
+}

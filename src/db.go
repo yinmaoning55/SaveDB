@@ -2,122 +2,25 @@ package src
 
 import (
 	"savedb/src/data"
+	"savedb/src/log"
+	"strconv"
 	"sync/atomic"
 	"time"
 )
 
 const (
 	dataDictSize = 1 << 16
-	ttlDictSize  = 1 << 10
-	dbsSize      = 8
+	dbsSize      = 16
 )
 
-var saveCommandMap map[string]saveDBCommand
-
-// 所有的命令 基本上和redis一样
-type saveDBCommand struct {
-	name            string                                       //参数名字
-	saveCommandProc func(db *SaveDBTables, args []string) Result //执行的函数
-	arity           int                                          //参数个数
-	funcKeys        KeysLockFunc                                 //获取命令中所有用于加锁的key
-}
-
-type KeysLockFunc func(args []string) ([]string, []string)
-
-// 全局大表
-type SaveDBTables struct {
-	index   int
-	Data    *data.ConcurrentDict
-	Expires map[string]time.Time //带有过期的key统一管理
-	AllKeys                      //缓存淘汰
-}
-type SaveObject struct {
-	dataType byte    //key的数据类型
-	lru      int64   //redisObject的LRU时间， 毫秒
-	refCount int16   //redisObject的引用计数
-	prt      *string //指向值的指针，8个字节
-
-}
-
 func init() {
-	Server.Dbs = make([]*atomic.Value, dbsSize)
-	for i := 0; i < dbsSize; i++ {
-		db := makeDB(i)
-		holder := &atomic.Value{}
-		holder.Store(db)
-		Server.Dbs[i] = holder
-	}
-}
-func makeDB(index int) *SaveDBTables {
-	db := &SaveDBTables{}
-	db.Data = data.MakeConcurrent(dataDictSize)
-	db.Expires = make(map[string]time.Time)
-	db.AllKeys = NewLKeys()
-	db.index = index
-	return db
-}
-
-func NewSaveObject(key *string, keyType byte) *SaveObject {
-	o := &SaveObject{
-		dataType: keyType,
-		lru:      time.Now().Unix(),
-		prt:      key,
-	}
-	return o
-}
-
-//func BGSaveRDB(db *saveDBTables, args [][]byte) Result {
-//	if db.persister == nil {
-//		return protocol.MakeErrReply("please enable aof before using save")
-//	}
-//	go func() {
-//		defer func() {
-//			if err := recover(); err != nil {
-//				logger.Error(err)
-//			}
-//		}()
-//		rdbFilename := config.Properties.RDBFilename
-//		if rdbFilename == "" {
-//			rdbFilename = "dump.rdb"
-//		}
-//		err := db.persister.GenerateRDB(rdbFilename)
-//		if err != nil {
-//			logger.Error(err)
-//		}
-//	}()
-//	return protocol.MakeStatusReply("Background saving started")
-//}
-
-func (db *SaveDBTables) Locks(readKeys, writeKeys []string) {
-	if readKeys == nil && writeKeys == nil {
-		return
-	}
-	db.Data.RWLocks(writeKeys, readKeys)
-}
-
-func (db *SaveDBTables) UnLocks(readKeys, writeKeys []string) {
-	if readKeys == nil && writeKeys == nil {
-		return
-	}
-	db.Data.RWUnLocks(writeKeys, readKeys)
-}
-func (c *Connection) Exec(msg *Message) {
-	commandFunc := saveCommandMap[*msg.Command]
-	var readKeys, writeKeys []string
-	if commandFunc.funcKeys != nil {
-		readKeys, writeKeys = commandFunc.funcKeys(msg.Args)
-	}
-	FindDB(c.dbIndex).Locks(readKeys, writeKeys)
-	wMsg := createWriterMsg(commandFunc.saveCommandProc(FindDB(c.dbIndex), msg.Args))
-	//写回
-	c.Writer <- wMsg
-	FindDB(c.dbIndex).UnLocks(readKeys, writeKeys)
-}
-func InitCommand() {
 	saveCommandMap = make(map[string]saveDBCommand)
+	saveCommandMap["select"] = saveDBCommand{name: "select", arity: 1}
+	saveCommandMap["bgsave"] = saveDBCommand{name: "bgsave", arity: 0}
+
 	saveCommandMap["get"] = saveDBCommand{name: "get", saveCommandProc: Get, arity: 1, funcKeys: readFirstKey}
 	saveCommandMap["set"] = saveDBCommand{name: "set", saveCommandProc: SetExc, arity: 2, funcKeys: writeFirstKey}
-	saveCommandMap["delete"] = saveDBCommand{name: "del", saveCommandProc: Del, arity: -1, funcKeys: writeAllKeys}
+	saveCommandMap["del"] = saveDBCommand{name: "del", saveCommandProc: Del, arity: -1, funcKeys: writeAllKeys}
 
 	saveCommandMap["keys"] = saveDBCommand{name: "keys", saveCommandProc: Keys, arity: 1}
 	saveCommandMap["exists"] = saveDBCommand{name: "exists", saveCommandProc: Exists, arity: 1, funcKeys: readFirstKey}
@@ -175,4 +78,142 @@ func InitCommand() {
 	saveCommandMap["expire"] = saveDBCommand{name: "expire", saveCommandProc: Expire, arity: 2, funcKeys: writeFirstKey}
 	saveCommandMap["ttl"] = saveDBCommand{name: "ttl", saveCommandProc: TTL, arity: 1, funcKeys: readFirstKey}
 
+}
+
+// 客户端cmd
+var saveCommandMap map[string]saveDBCommand
+
+// 所有的命令 基本上和redis一样
+type saveDBCommand struct {
+	name            string                                       //参数名字
+	saveCommandProc func(db *SaveDBTables, args []string) Result //执行的函数
+	arity           int                                          //参数个数
+	funcKeys        KeysLockFunc                                 //获取命令中所有用于加锁的key
+}
+
+type KeysLockFunc func(args []string) ([]string, []string)
+
+// 每个db的全局大表
+type SaveDBTables struct {
+	index   int
+	Data    *data.ConcurrentDict
+	Expires map[string]time.Time //带有过期的key统一管理
+	AllKeys                      //缓存淘汰
+}
+
+func (db *SaveDBTables) ForEach(i int, cb func(key string, data any, expiration *time.Time) bool) {
+	db.Data.ForEach(func(key string, raw interface{}) bool {
+		var expiration *time.Time
+		rawExpireTime, ok := db.Expires[key]
+		if ok {
+			expiration = &rawExpireTime
+		}
+		return cb(key, raw, expiration)
+	})
+}
+func (db *SaveDBTables) PutEntity(key string, entity *any) int {
+	ret := db.Data.PutWithLock(key, entity)
+	//todo callbacks
+	return ret
+}
+
+type SaveObject struct {
+	dataType byte    //key的数据类型
+	lru      int64   //redisObject的LRU时间， 毫秒
+	refCount int16   //redisObject的引用计数
+	prt      *string //指向值的指针，8个字节
+
+}
+
+func init() {
+	Server.Dbs = make([]*atomic.Value, dbsSize)
+	for i := 0; i < dbsSize; i++ {
+		db := makeDB(i)
+		holder := &atomic.Value{}
+		holder.Store(db)
+		Server.Dbs[i] = holder
+	}
+}
+func makeDB(index int) *SaveDBTables {
+	db := &SaveDBTables{}
+	db.Data = data.MakeConcurrent(dataDictSize)
+	db.Expires = make(map[string]time.Time)
+	db.AllKeys = NewLKeys()
+	db.index = index
+	return db
+}
+
+func NewSaveObject(key *string, keyType byte) *SaveObject {
+	o := &SaveObject{
+		dataType: keyType,
+		lru:      time.Now().Unix(),
+		prt:      key,
+	}
+	return o
+}
+
+func BGSaveRDB() Result {
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				log.SaveDBLogger.Errorf("bgsave error %v", err)
+			}
+		}()
+		//rdbFilename := "save.rdb"
+
+		//err := db.persister.GenerateRDB(rdbFilename)
+		//if err != nil {
+		//	log.SaveDBLogger.Errorf("bgsave error %v", err)
+		//}
+	}()
+	return CreateStrResult(C_OK, "Background saving started")
+}
+
+func (db *SaveDBTables) Locks(readKeys, writeKeys []string) {
+	if readKeys == nil && writeKeys == nil {
+		return
+	}
+	db.Data.RWLocks(writeKeys, readKeys)
+}
+
+func (db *SaveDBTables) UnLocks(readKeys, writeKeys []string) {
+	if readKeys == nil && writeKeys == nil {
+		return
+	}
+	db.Data.RWUnLocks(writeKeys, readKeys)
+}
+func (s *SaveServer) Exec(c *Connection, msg *Message) {
+	cmd := *msg.Command
+	if cmd == "select" {
+		index, _ := strconv.Atoi(msg.Args[0])
+		err := SelectDB(index, c)
+		var wm *Message
+		if err != nil {
+			wm = createWriterMsg(CreateStrResult(C_ERR, err.Error()))
+		} else {
+			wm = createWriterMsg(CreateStrResult(C_OK, OK_STR))
+		}
+		if c != nil {
+			c.Writer <- wm
+		}
+		return
+	} else if cmd == "bgsave" {
+		wm := createWriterMsg(BGSaveRDB())
+		if c != nil {
+			c.Writer <- wm
+		}
+		return
+	}
+	commandFunc := saveCommandMap[cmd]
+	var readKeys, writeKeys []string
+	if commandFunc.funcKeys != nil {
+		readKeys, writeKeys = commandFunc.funcKeys(msg.Args)
+	}
+	FindDB(c.dbIndex).Locks(readKeys, writeKeys)
+	wMsg := createWriterMsg(commandFunc.saveCommandProc(FindDB(c.dbIndex), msg.Args))
+	//写回
+	if c != nil {
+		c.Writer <- wMsg
+	}
+	FindDB(c.dbIndex).UnLocks(readKeys, writeKeys)
 }

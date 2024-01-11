@@ -5,16 +5,16 @@ func Get(db *SaveDBTables, args []string) Result {
 	s, ok := db.Data.GetWithLock(key)
 	if ok {
 		db.AllKeys.ActivateKey(args[0])
-		if _, ok := s.(*string); !ok {
+		if _, ok := s.([]byte); !ok {
 			return CreateStrResult(C_ERR, "type conversion error")
 		}
-		return CreateStrResult(C_OK, *s.(*string))
+		return CreateStrResult(C_OK, string(s.([]byte)))
 	}
 	return CreateStrResult(C_ERR, "key not exist")
 }
 
 func SetExc(db *SaveDBTables, arg []string) Result {
-	db.Data.PutWithLock(arg[0], &arg[1])
+	db.Data.PutWithLock(arg[0], []byte(arg[1]))
 	db.AllKeys.PutKey(arg[0], TypeStr)
 	return CreateResult(C_OK, StringToBytes(OK_STR))
 }

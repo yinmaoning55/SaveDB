@@ -1,7 +1,32 @@
 package src
 
-import "encoding/binary"
+import (
+	"bytes"
+	"encoding/binary"
+	"net"
+	"strconv"
+)
 
+func CreateMsg(c *net.Conn, cmd string, args []string) *Message {
+	msg := &Message{
+		Conn:    c,
+		Command: &cmd,
+		Args:    args,
+	}
+	return msg
+}
+func CreateDefinedMsg(c *net.Conn, cmd string, arg ...string) *Message {
+	args := make([]string, len(arg))
+	for i, s := range arg {
+		args[i] = s
+	}
+	msg := &Message{
+		Conn:    c,
+		Command: &cmd,
+		Args:    args,
+	}
+	return msg
+}
 func StringToBytes(s string) []byte {
 	return []byte(s)
 }
@@ -100,4 +125,32 @@ func writeInt32(bs []byte, pos int, v int32) {
 }
 func writeInt64(bs []byte, pos int, v int64) {
 	binary.BigEndian.PutUint64(bs[pos:], uint64(v))
+}
+func ToCmdLine(cmd ...string) [][]byte {
+	args := make([][]byte, len(cmd))
+	for i, s := range cmd {
+		args[i] = []byte(s)
+	}
+	return args
+}
+func ToBytes(args [][]byte) []byte {
+	argLen := len(args)
+	var buf bytes.Buffer
+	buf.WriteString("*" + strconv.Itoa(argLen) + CRLF)
+	for _, arg := range args {
+		if arg == nil {
+			buf.WriteString("$-1" + CRLF)
+		} else {
+			buf.WriteString("$" + strconv.Itoa(len(arg)) + CRLF + string(arg) + CRLF)
+		}
+	}
+	return buf.Bytes()
+}
+
+func BytesArrayToStringArray(b [][]byte) []string {
+	s := make([]string, len(b))
+	for i, i2 := range b {
+		s[i] = string(i2)
+	}
+	return s
 }
