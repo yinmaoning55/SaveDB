@@ -136,6 +136,14 @@ func ToCmdLine(cmd ...string) [][]byte {
 	}
 	return args
 }
+func ToCmdLine2(commandName string, args ...string) [][]byte {
+	result := make([][]byte, len(args)+1)
+	result[0] = []byte(commandName)
+	for i, s := range args {
+		result[i+1] = []byte(s)
+	}
+	return result
+}
 func ToBytes(args [][]byte) []byte {
 	argLen := len(args)
 	var buf bytes.Buffer

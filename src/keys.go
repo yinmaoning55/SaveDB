@@ -48,6 +48,7 @@ func Expire(db *SaveDBTables, args []string) Result {
 		db.Locks(nil, keys)
 		Del(db, args)
 	})
+	db.addAof(MakeExpireCmd(key, expireAt).Args)
 	return CreateStrResult(C_OK, OK_STR)
 }
 

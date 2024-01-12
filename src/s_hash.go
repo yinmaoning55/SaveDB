@@ -60,6 +60,7 @@ func HmSet(db *SaveDBTables, args []string) Result {
 	for i, value := range fields {
 		hash.M[value] = &values[i]
 	}
+	db.addAof(ToCmdLine2("hmset", args...))
 	return CreateResult(C_OK, []byte(strconv.Itoa(len(values))))
 }
 
@@ -99,7 +100,7 @@ func HDel(db *SaveDBTables, args []string) Result {
 	for _, value := range args[1:] {
 		delete(hash.M, value)
 	}
-
+	db.addAof(ToCmdLine2("hdel", args...))
 	return CreateResult(C_OK, []byte(strconv.Itoa(len(args[1:]))))
 }
 

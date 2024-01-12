@@ -12,7 +12,7 @@ appendfsync: everysec
 #字符串并加载带前缀的RDB文件，并继续加载AOF尾部。
 aof-use-rdb-preamble: yes
 
-#文件临时目录
+#文件临时目录 rdb aof文件存储位置
 dir: temp
 
 #rdb地址

@@ -275,6 +275,7 @@ func InitServer() {
 	NewSingleServer()
 }
 
+// 单机下启动
 func NewSingleServer() {
 	err := os.MkdirAll(Config.Dir, os.ModePerm)
 	if err != nil {

@@ -54,7 +54,7 @@ func (persister *Persister) GenerateRDBForReplication(rdbFilename string, listen
 func (persister *Persister) startGenerateRDB(newListener Listener, hook func()) (*RewriteCtx, error) {
 	persister.pausingAof.Lock() // pausing aof
 	defer persister.pausingAof.Unlock()
-	//将文件的内容同步落盘
+	//将aof文件的内容同步落盘
 	err := persister.aofFile.Sync()
 	if err != nil {
 		log.SaveDBLogger.Warn("fsync failed")
@@ -84,8 +84,8 @@ func (persister *Persister) startGenerateRDB(newListener Listener, hook func()) 
 
 func (persister *Persister) generateRDB(ctx *RewriteCtx) error {
 	// load aof tmpFile
-	tmpHandler := persister.newRewriteHandler()
-	tmpHandler.LoadAof(int(ctx.fileSize))
+	tmpPersister := persister.newRewriteHandler()
+	tmpPersister.LoadAof(int(ctx.fileSize))
 
 	encoder := rdb.NewEncoder(ctx.tmpFile).EnableCompress()
 	err := encoder.WriteHeader()

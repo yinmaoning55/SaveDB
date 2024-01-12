@@ -20,11 +20,11 @@ const (
 )
 
 const (
-	// FsyncAlways do fsync for every command
+	//  do fsync for every command
 	FsyncAlways = "always"
-	// FsyncEverySec do fsync every second
+	//  do fsync every second
 	FsyncEverySec = "everysec"
-	// FsyncNo lets operating system decides when to do fsync
+	//  lets operating system decides when to do fsync
 	FsyncNo = "no"
 )
 
@@ -87,6 +87,7 @@ func (persister *Persister) SaveCmdLine(dbIndex int, cmdLine CmdLine) {
 		return
 	}
 
+	//always同步保存
 	if persister.aofFsync == FsyncAlways {
 		p := &payload{
 			cmdLine: cmdLine,
@@ -167,14 +168,17 @@ func (persister *Persister) LoadAof(maxBytes int) {
 	if err != nil {
 		// no rdb preamble
 		//offset 设置为 0，表示不进行偏移，而 whence 设置为 io.SeekStart，表示将文件指针设置到文件的起始位置。
-		file.Seek(0, io.SeekStart)
+		_, _ = file.Seek(0, io.SeekStart)
 	} else {
 		// has rdb preamble
+		//设置文件从哪里开始读
 		_, _ = file.Seek(int64(decoder.GetReadCount())+1, io.SeekStart)
+		//上次落盘到现在产生的aof日志
 		maxBytes = maxBytes - decoder.GetReadCount()
 	}
 	var reader io.Reader
 	if maxBytes > 0 {
+		//只读取刚才aof同步落盘时的数据
 		reader = io.LimitReader(file, int64(maxBytes))
 	} else {
 		reader = file
@@ -233,6 +237,7 @@ func (persister *Persister) Close() {
 	persister.cancel()
 }
 
+// 1秒执行一次落盘
 func (persister *Persister) fsyncEverySecond() {
 	ticker := time.NewTicker(time.Second)
 	go func() {
