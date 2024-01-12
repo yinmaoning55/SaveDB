@@ -10,19 +10,16 @@ import (
 
 func (persister *Persister) newRewriteHandler() *Persister {
 	h := &Persister{}
-	h.aofFilename = persister.aofFilename
 	h.db = persister.tmpDBMaker()
 	return h
 }
 
-// RewriteCtx holds context of an AOF rewriting procedure
 type RewriteCtx struct {
 	tmpFile  *os.File // tmpFile is the file handler of aof tmpFile
 	fileSize int64
 	dbIdx    int // selected db index when startRewrite
 }
 
-// Rewrite carries out AOF rewrite
 func (persister *Persister) Rewrite() error {
 	ctx, err := persister.StartRewrite()
 	if err != nil {
@@ -37,8 +34,6 @@ func (persister *Persister) Rewrite() error {
 	return nil
 }
 
-// DoRewrite actually rewrite aof file
-// makes DoRewrite public for testing only, please use Rewrite instead
 func (persister *Persister) DoRewrite(ctx *RewriteCtx) (err error) {
 	// start rewrite
 	if !Config.AofUseRdbPreamble {
@@ -51,7 +46,6 @@ func (persister *Persister) DoRewrite(ctx *RewriteCtx) (err error) {
 	return err
 }
 
-// StartRewrite prepares rewrite procedure
 func (persister *Persister) StartRewrite() (*RewriteCtx, error) {
 	// pausing aof
 	persister.pausingAof.Lock()
@@ -64,7 +58,7 @@ func (persister *Persister) StartRewrite() (*RewriteCtx, error) {
 	}
 
 	// get current aof file size
-	fileInfo, _ := os.Stat(persister.aofFilename)
+	fileInfo, _ := os.Stat(GetAofFilePath())
 	filesize := fileInfo.Size()
 
 	// create tmp file
@@ -80,7 +74,6 @@ func (persister *Persister) StartRewrite() (*RewriteCtx, error) {
 	}, nil
 }
 
-// FinishRewrite finish rewrite procedure
 func (persister *Persister) FinishRewrite(ctx *RewriteCtx) {
 	persister.pausingAof.Lock() // pausing aof
 	defer persister.pausingAof.Unlock()
@@ -89,7 +82,7 @@ func (persister *Persister) FinishRewrite(ctx *RewriteCtx) {
 	// copy commands executed during rewriting to tmpFile
 	errOccurs := func() bool {
 		/* read write commands executed during rewriting */
-		src, err := os.Open(persister.aofFilename)
+		src, err := os.Open(GetAofFilePath())
 		if err != nil {
 			log.SaveDBLogger.Error("open aofFilename failed: " + err.Error())
 			return true
@@ -125,11 +118,11 @@ func (persister *Persister) FinishRewrite(ctx *RewriteCtx) {
 
 	// replace current aof file by tmp file
 	_ = persister.aofFile.Close()
-	if err := os.Rename(tmpFile.Name(), persister.aofFilename); err != nil {
+	if err := os.Rename(tmpFile.Name(), GetAofFilePath()); err != nil {
 		log.SaveDBLogger.Warn(err)
 	}
 	// reopen aof file for further write
-	aofFile, err := os.OpenFile(persister.aofFilename, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
+	aofFile, err := os.OpenFile(GetAofFilePath(), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		panic(err)
 	}

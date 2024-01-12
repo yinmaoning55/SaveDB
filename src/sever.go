@@ -229,7 +229,7 @@ type serverConfig struct {
 	Appendfsync       string         `yaml:"appendfsync"`
 	AofUseRdbPreamble bool           `yaml:"aof-use-rdb-preamble"`
 	Dir               string         `yaml:"dir"`
-	RDBFilename       string         `yaml:"dbfilename"`
+	RDBFilename       string         `yaml:"rdbfilename"`
 	AppendOnly        bool           `yaml:"appendonly"`
 	AppendFilename    string         `yaml:"appendfilename"`
 	Logs              *log.LogConfig `yaml:"logs"`
@@ -276,16 +276,16 @@ func InitServer() {
 }
 
 func NewSingleServer() {
-	fmt.Println("---------", Config.Dir)
 	err := os.MkdirAll(Config.Dir, os.ModePerm)
 	if err != nil {
 		panic(fmt.Errorf("create tmp dir failed: %v", err))
 	}
 	validAof := false
+	//先判断是否开启aof
 	if Config.AppendOnly {
-		validAof = fileExists(Config.AppendFilename)
+		validAof = fileExists(GetAofFilePath())
 		aofHandler, err := NewPersister2(*Server,
-			Config.AppendFilename, true, Config.Appendfsync)
+			GetAofFilePath(), true, Config.Appendfsync)
 		if err != nil {
 			panic(err)
 		}
@@ -298,4 +298,10 @@ func NewSingleServer() {
 			log.SaveDBLogger.Errorf("load rdb err: %v", err)
 		}
 	}
+}
+func GetRDBFilePath() string {
+	return Config.Dir + "/" + Config.RDBFilename
+}
+func GetAofFilePath() string {
+	return Config.Dir + "/" + Config.AppendFilename
 }

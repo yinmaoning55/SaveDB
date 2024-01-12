@@ -3,8 +3,10 @@ package src
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 )
 
@@ -159,4 +161,13 @@ func BytesArrayToStringArray(b [][]byte) []string {
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
 	return err == nil && !info.IsDir()
+}
+
+func PrintStackTrace() {
+	// 获取堆栈信息
+	buf := make([]byte, 1<<16)
+	stackSize := runtime.Stack(buf, false)
+
+	// 打印堆栈信息
+	fmt.Printf("堆栈信息:\n%s", buf[:stackSize])
 }

@@ -39,32 +39,8 @@ type Listener interface {
 	Callback([]CmdLine)
 }
 
-type Persister struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	db         SaveServer
-	tmpDBMaker func() SaveServer
-	// aofChan is the channel to receive aof payload(listenCmd will send payload to this channel)
-	aofChan chan *payload
-	// aofFile is the file handler of aof file
-	aofFile *os.File
-	// aofFilename is the path of aof file
-	aofFilename string
-	// aofFsync is the strategy of fsync
-	aofFsync string
-	// aof goroutine will send msg to main goroutine through this channel when aof tasks finished and ready to shut down
-	aofFinished chan struct{}
-	// pause aof for start/finish aof rewrite progress
-	pausingAof sync.Mutex
-	currentDB  int
-	listeners  map[Listener]struct{}
-	// reuse cmdLine buffer
-	buffer []CmdLine
-}
-
 func NewPersister(db SaveServer, filename string, load bool, fsync string, tmpDBMaker func() SaveServer) (*Persister, error) {
 	persister := &Persister{}
-	persister.aofFilename = filename
 	persister.aofFsync = strings.ToLower(fsync)
 	persister.db = db
 	persister.tmpDBMaker = tmpDBMaker
@@ -73,7 +49,11 @@ func NewPersister(db SaveServer, filename string, load bool, fsync string, tmpDB
 	if load {
 		persister.LoadAof(0)
 	}
-	aofFile, err := os.OpenFile(persister.aofFilename, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
+	//打开文件时的标志位，使用位掩码
+	//os.O_APPEND: 将文件指针设置为文件末尾，在文件中追加数据。
+	//os.O_CREATE: 如果文件不存在，则创建文件。
+	//os.O_RDWR: 以读写方式打开文件。
+	aofFile, err := os.OpenFile(GetAofFilePath(), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +151,7 @@ func (persister *Persister) LoadAof(maxBytes int) {
 		persister.aofChan = aofChan
 	}(aofChan)
 
-	file, err := os.Open(persister.aofFilename)
+	file, err := os.Open(GetAofFilePath())
 	if err != nil {
 		if _, ok := err.(*os.PathError); ok {
 			return
@@ -186,6 +166,7 @@ func (persister *Persister) LoadAof(maxBytes int) {
 	err = persister.db.LoadRDB(decoder)
 	if err != nil {
 		// no rdb preamble
+		//offset 设置为 0，表示不进行偏移，而 whence 设置为 io.SeekStart，表示将文件指针设置到文件的起始位置。
 		file.Seek(0, io.SeekStart)
 	} else {
 		// has rdb preamble
@@ -198,6 +179,7 @@ func (persister *Persister) LoadAof(maxBytes int) {
 	} else {
 		reader = file
 	}
+	//异步加载aof文件 通过channel传递
 	ch := ParseStream(reader)
 	for p := range ch {
 		if p.Err != nil {
@@ -218,6 +200,7 @@ func (persister *Persister) LoadAof(maxBytes int) {
 		}
 		s := BytesArrayToStringArray(r.Args)
 		msg := CreateMsg(nil, s[0], s[1:])
+		//插入数据库
 		persister.db.Exec(nil, msg)
 		if strings.ToLower(string(r.Args[0])) == "select" {
 			// execSelect success, here must be no error

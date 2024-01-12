@@ -158,14 +158,13 @@ func BGSaveRDB() Result {
 		defer func() {
 			if err := recover(); err != nil {
 				log.SaveDBLogger.Errorf("bgsave error %v", err)
+				PrintStackTrace()
 			}
 		}()
-		//rdbFilename := "save.rdb"
-
-		//err := db.persister.GenerateRDB(rdbFilename)
-		//if err != nil {
-		//	log.SaveDBLogger.Errorf("bgsave error %v", err)
-		//}
+		err := Server.persister.GenerateRDB(Config.RDBFilename)
+		if err != nil {
+			log.SaveDBLogger.Errorf("bgsave error %v", err)
+		}
 	}()
 	return CreateStrResult(C_OK, "Background saving started")
 }

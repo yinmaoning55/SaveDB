@@ -20,6 +20,7 @@ type Payload struct {
 // ParseStream reads data from io.Reader and send payloads through channel
 func ParseStream(reader io.Reader) <-chan *Payload {
 	ch := make(chan *Payload)
+	//异步解析读取aof文件
 	go parse0(reader, ch)
 	return ch
 }

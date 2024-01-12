@@ -2,15 +2,38 @@ package src
 
 import "C"
 import (
+	"context"
 	"fmt"
 	"github.com/hdt3213/rdb/core"
 	rdb "github.com/hdt3213/rdb/parser"
 	"os"
+	"sync"
 	"sync/atomic"
 )
 
+type Persister struct {
+	ctx        context.Context
+	cancel     context.CancelFunc
+	db         SaveServer
+	tmpDBMaker func() SaveServer
+	// aofChan is the channel to receive aof payload(listenCmd will send payload to this channel)
+	aofChan chan *payload
+	// aofFile is the file handler of aof file
+	aofFile *os.File
+	// aofFsync is the strategy of fsync
+	aofFsync string
+	// aof goroutine will send msg to main goroutine through this channel when aof tasks finished and ready to shut down
+	aofFinished chan struct{}
+	// pause aof for start/finish aof rewrite progress
+	pausingAof sync.Mutex
+	currentDB  int
+	listeners  map[Listener]struct{}
+	// reuse cmdLine buffer
+	buffer []CmdLine
+}
+
 func (server *SaveServer) loadRdbFile() error {
-	rdbFile, err := os.Open(Config.RDBFilename)
+	rdbFile, err := os.Open(GetRDBFilePath())
 	if err != nil {
 		return fmt.Errorf("open rdb file failed " + err.Error())
 	}

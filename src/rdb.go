@@ -23,7 +23,7 @@ func (persister *Persister) GenerateRDB(rdbFilename string) error {
 	if err != nil {
 		return err
 	}
-	err = os.Rename(ctx.tmpFile.Name(), rdbFilename)
+	err = os.Rename(ctx.tmpFile.Name(), GetRDBFilePath())
 	if err != nil {
 		return err
 	}
@@ -54,15 +54,15 @@ func (persister *Persister) GenerateRDBForReplication(rdbFilename string, listen
 func (persister *Persister) startGenerateRDB(newListener Listener, hook func()) (*RewriteCtx, error) {
 	persister.pausingAof.Lock() // pausing aof
 	defer persister.pausingAof.Unlock()
-
+	//将文件的内容同步落盘
 	err := persister.aofFile.Sync()
 	if err != nil {
 		log.SaveDBLogger.Warn("fsync failed")
 		return nil, err
 	}
 
-	// get current aof file size
-	fileInfo, _ := os.Stat(persister.aofFilename)
+	//获取文件大小
+	fileInfo, _ := os.Stat(GetAofFilePath())
 	filesize := fileInfo.Size()
 	// create tmp file
 	file, err := os.CreateTemp(Config.Dir, "*.aof")
