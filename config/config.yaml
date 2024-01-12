@@ -12,11 +12,14 @@ appendfsync: everysec
 #字符串并加载带前缀的RDB文件，并继续加载AOF尾部。
 aof-use-rdb-preamble: yes
 
-#aof日志地址
-dir: /temp
+#文件临时目录
+dir: temp
 
 #rdb地址
-dbfilename: test.rdb
+rdbfilename: save.rdb
+
+#aof文件地址
+appendfilename: append.aof
 
 #默认情况下，数据集异步转储到磁盘上。这个模式是
 #在许多应用程序中已经足够好了，但是Redis进程的一个问题是
@@ -33,7 +36,8 @@ dbfilename: test.rdb
 #可以同时启用AOF和RDB持久性而不会出现问题。
 #如果启动时启用了AOF, Redis将加载AOF，这就是文件
 #具有较好的持久性保证。
-appendonly: false
+#启用或禁用AOF
+appendonly: true
 
 logs:
   path: logs

@@ -4,3 +4,4 @@ testdata/
 */*.DS_Store
 /bin
 /logs
+/temp
