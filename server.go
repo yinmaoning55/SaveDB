@@ -21,7 +21,8 @@ func main() {
 	log.InitLog(src.Config.Logs)
 	log.SaveDBLogger.Infof("init config!", src.Config)
 
-	src.InitCommand()
+	src.InitServer()
+	log.SaveDBLogger.Infof("init server!", src.Config)
 
 	err := src.StartTCPServer(src.Config.Port)
 	if err != nil {

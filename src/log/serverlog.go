@@ -8,10 +8,10 @@ import (
 )
 
 var SaveDBLogger *zap.SugaredLogger
-var allLoger map[string]*zap.SugaredLogger
+var allLogger map[string]*zap.SugaredLogger
 
 func GetLogger(name string) *zap.SugaredLogger {
-	v, ok := allLoger[name]
+	v, ok := allLogger[name]
 	if !ok {
 		return nil
 	}
@@ -147,13 +147,13 @@ func InitLog(config *LogConfig) {
 	if config.MaxBackups == 0 {
 		config.MaxAge = 100
 	}
-	allLoger = map[string]*zap.SugaredLogger{}
+	allLogger = map[string]*zap.SugaredLogger{}
 	errorCore := createErrorLoger(config)
 	SaveDBLogger = createLogger(config, "saveDB", config.Levels["saveDB"], errorCore)
-	allLoger["saveDB"] = SaveDBLogger
+	allLogger["saveDB"] = SaveDBLogger
 	for k, v := range config.Levels {
 		if k != "saveDB" {
-			allLoger[k] = createLogger(config, k, v, errorCore)
+			allLogger[k] = createLogger(config, k, v, errorCore)
 		}
 	}
 }

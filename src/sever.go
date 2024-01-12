@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"savedb/src/log"
 	"strconv"
 	"strings"
@@ -227,8 +228,10 @@ type serverConfig struct {
 	Port              int            `yaml:"port"`
 	Appendfsync       string         `yaml:"appendfsync"`
 	AofUseRdbPreamble bool           `yaml:"aof-use-rdb-preamble"`
-	Aofdir            string         `yaml:"aof-dir"`
+	Dir               string         `yaml:"dir"`
 	RDBFilename       string         `yaml:"dbfilename"`
+	AppendOnly        bool           `yaml:"appendonly"`
+	AppendFilename    string         `yaml:"appendfilename"`
 	Logs              *log.LogConfig `yaml:"logs"`
 }
 
@@ -249,7 +252,8 @@ func (config *serverConfig) LoadConfig(path string) {
 var Server = &SaveServer{}
 
 type SaveServer struct {
-	Dbs []*atomic.Value
+	Dbs       []*atomic.Value
+	persister *Persister
 }
 
 func (s SaveServer) ForEche(index int, cb func(key string, entity any, expiration *time.Time) bool) {
@@ -268,5 +272,30 @@ func SelectDB(index int, conn *Connection) error {
 }
 
 func InitServer() {
+	NewSingleServer()
+}
 
+func NewSingleServer() {
+	fmt.Println("---------", Config.Dir)
+	err := os.MkdirAll(Config.Dir, os.ModePerm)
+	if err != nil {
+		panic(fmt.Errorf("create tmp dir failed: %v", err))
+	}
+	validAof := false
+	if Config.AppendOnly {
+		validAof = fileExists(Config.AppendFilename)
+		aofHandler, err := NewPersister2(*Server,
+			Config.AppendFilename, true, Config.Appendfsync)
+		if err != nil {
+			panic(err)
+		}
+		Server.bindPersister(aofHandler)
+	}
+	if Config.RDBFilename != "" && !validAof {
+		// load rdb
+		err := Server.loadRdbFile()
+		if err != nil {
+			log.SaveDBLogger.Errorf("load rdb err: %v", err)
+		}
+	}
 }

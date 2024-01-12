@@ -6,6 +6,7 @@ import (
 	"github.com/hdt3213/rdb/core"
 	rdb "github.com/hdt3213/rdb/parser"
 	"os"
+	"sync/atomic"
 )
 
 func (server *SaveServer) loadRdbFile() error {
@@ -74,38 +75,38 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 	})
 }
 
-//func NewPersister2(db SaveServer, filename string, load bool, fsync string) (*Persister, error) {
-//	return NewPersister(db, filename, load, fsync, func() SaveServer {
-//		return MakeAuxiliaryServer()
-//	})
-//}
-//
-//func (server *SaveServer) AddAof(dbIndex int, cmdLine CmdLine) {
-//	if server.persister != nil {
-//		server.persister.SaveCmdLine(dbIndex, cmdLine)
-//	}
-//}
-//
-//func (server *SaveServer) bindPersister(aofHandler *aof.Persister) {
-//	server.persister = aofHandler
-//	// bind SaveCmdLine
-//	for _, db := range server.dbSet {
-//		singleDB := db.Load().(*DB)
-//		singleDB.addAof = func(line CmdLine) {
-//			if config.Properties.AppendOnly { // config may be changed during runtime
-//				server.persister.SaveCmdLine(singleDB.index, line)
-//			}
-//		}
-//	}
-//}
-//
-//func MakeAuxiliaryServer() *SaveServer {
-//	mdb := &SaveServer{}
-//	mdb.dbSet = make([]*atomic.Value, config.Properties.Databases)
-//	for i := range mdb.dbSet {
-//		holder := &atomic.Value{}
-//		holder.Store(makeBasicDB())
-//		mdb.dbSet[i] = holder
-//	}
-//	return mdb
-//}
+func NewPersister2(db SaveServer, filename string, load bool, fsync string) (*Persister, error) {
+	return NewPersister(db, filename, load, fsync, func() SaveServer {
+		return MakeAuxiliaryServer()
+	})
+}
+
+func (server *SaveServer) AddAof(dbIndex int, cmdLine CmdLine) {
+	if server.persister != nil {
+		server.persister.SaveCmdLine(dbIndex, cmdLine)
+	}
+}
+
+func (server *SaveServer) bindPersister(aofHandler *Persister) {
+	server.persister = aofHandler
+	// bind SaveCmdLine
+	for _, db := range server.Dbs {
+		singleDB := db.Load().(*SaveDBTables)
+		singleDB.addAof = func(line CmdLine) {
+			if Config.AppendOnly { // config may be changed during runtime
+				server.persister.SaveCmdLine(singleDB.index, line)
+			}
+		}
+	}
+}
+
+func MakeAuxiliaryServer() SaveServer {
+	mdb := SaveServer{}
+	mdb.Dbs = make([]*atomic.Value, dbsSize)
+	for i := range mdb.Dbs {
+		holder := &atomic.Value{}
+		holder.Store(makeDB(i))
+		mdb.Dbs[i] = holder
+	}
+	return mdb
+}

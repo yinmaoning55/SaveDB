@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
+	"os"
 	"strconv"
 )
 
@@ -153,4 +154,9 @@ func BytesArrayToStringArray(b [][]byte) []string {
 		s[i] = string(i2)
 	}
 	return s
+}
+
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	return err == nil && !info.IsDir()
 }

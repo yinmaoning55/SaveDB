@@ -65,7 +65,7 @@ func (persister *Persister) startGenerateRDB(newListener Listener, hook func()) 
 	fileInfo, _ := os.Stat(persister.aofFilename)
 	filesize := fileInfo.Size()
 	// create tmp file
-	file, err := os.CreateTemp(Config.Aofdir, "*.aof")
+	file, err := os.CreateTemp(Config.Dir, "*.aof")
 	if err != nil {
 		log.SaveDBLogger.Warn("tmp file create failed")
 		return nil, err

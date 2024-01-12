@@ -1,3 +1,39 @@
+#端口
 port: 40000
+
+#always 同步写回，everysec 每秒写回, no 操作系统控制
+appendfsync: everysec
+
+#当重写AOF文件时，Redis可以在
+#AOF文件，以便更快地重写和恢复。当这个选项被打开时
+#重写的AOF文件由两个不同的节组成:[RDB文件][AOF尾部]
+
+#加载时，Redis识别出AOF文件以“Redis”开头。
+#字符串并加载带前缀的RDB文件，并继续加载AOF尾部。
+aof-use-rdb-preamble: yes
+
+#aof日志地址
+dir: /temp
+
+#rdb地址
+dbfilename: test.rdb
+
+#默认情况下，数据集异步转储到磁盘上。这个模式是
+#在许多应用程序中已经足够好了，但是Redis进程的一个问题是
+#停电可能会导致几分钟的写丢失(取决于
+#配置的保存点)。
+#
+#只追加文件是一种可选的持久性模式，它提供
+#耐久性好得多。例如使用默认的数据同步策略
+#(见后面的配置文件)Redis可以只丢失一秒钟的写
+#的事件，比如服务器停电，或者一次写操作
+#Redis进程本身出了问题，但操作系统却出了问题
+#仍然运行正常。
+#
+#可以同时启用AOF和RDB持久性而不会出现问题。
+#如果启动时启用了AOF, Redis将加载AOF，这就是文件
+#具有较好的持久性保证。
+appendonly: false
+
 logs:
   path: logs

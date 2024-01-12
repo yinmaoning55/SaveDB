@@ -99,6 +99,7 @@ type SaveDBTables struct {
 	Data    *data.ConcurrentDict
 	Expires map[string]time.Time //带有过期的key统一管理
 	AllKeys                      //缓存淘汰
+	addAof  func(CmdLine)
 }
 
 func (db *SaveDBTables) ForEach(i int, cb func(key string, data any, expiration *time.Time) bool) {
