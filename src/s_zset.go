@@ -76,7 +76,7 @@ func ZAdd(db *SaveDBTables, args []string) Result {
 	}
 
 	//persistence
-
+	db.addAof(ToCmdLine2("zadd", args...))
 	//添加全局key
 	db.AllKeys.PutKey(key, TypeZSet)
 	return CreateStrResult(C_OK, strconv.Itoa(i))
@@ -445,7 +445,7 @@ func ZRemRangeByScore(db *SaveDBTables, args []string) Result {
 
 	removed := sortedSet.Z.RemoveRange(min, max)
 	if removed > 0 {
-		//persistence
+		db.addAof(ToCmdLine2("zremrangebyscore", args...))
 	}
 	return CreateStrResult(C_OK, strconv.FormatInt(removed, 10))
 }
@@ -494,7 +494,7 @@ func ZRemRangeByRank(db *SaveDBTables, args []string) Result {
 	// assert: start in [0, size - 1], stop in [start, size]
 	removed := sortedSet.Z.RemoveByRank(start, stop)
 	if removed > 0 {
-		//persistence
+		db.addAof(ToCmdLine2("zremrangebyrank", args...))
 	}
 	return CreateStrResult(C_OK, strconv.FormatInt(removed, 10))
 }
@@ -521,6 +521,7 @@ func ZPopMin(db *SaveDBTables, args []string) Result {
 	removed := sortedSet.Z.PopMin(count)
 	if len(removed) > 0 {
 		//persistence
+		db.addAof(ToCmdLine2("zpopmin", args...))
 	}
 	result := make([]string, 0, len(removed)*2)
 	for _, element := range removed {
@@ -558,6 +559,7 @@ func ZRem(db *SaveDBTables, args []string) Result {
 	}
 	if deleted > 0 {
 		//persistence
+		db.addAof(ToCmdLine2("zrem", args...))
 	}
 	return CreateStrResult(C_OK, strconv.FormatInt(deleted, 10))
 }
@@ -584,11 +586,13 @@ func ZIncrBy(db *SaveDBTables, args []string) Result {
 	if !exists {
 		sortedSet.Z.Add(field, delta)
 		//persistence
+		db.addAof(ToCmdLine2("zincrby", args...))
 		return CreateStrResult(C_OK, args[1])
 	}
 	score := element.Score + delta
 	sortedSet.Z.Add(field, score)
 	//persistence
+	db.addAof(ToCmdLine2("zincrby", args...))
 	return CreateStrResult(C_OK, strconv.FormatFloat(score, 'f', -1, 64))
 }
 

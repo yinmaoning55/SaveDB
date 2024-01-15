@@ -70,6 +70,7 @@ func LPop(db *SaveDBTables, args []string) Result {
 	if list.L.Len() == 0 {
 		Del(db, args)
 	}
+	db.addAof(ToCmdLine2("lpop", args...))
 	return CreateStrResult(C_OK, val)
 }
 
@@ -85,6 +86,7 @@ func LPush(db *SaveDBTables, args []string) Result {
 	for _, value := range values {
 		list.L.Insert(0, value)
 	}
+	db.addAof(ToCmdLine2("lpush", args...))
 	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }
 
@@ -104,6 +106,7 @@ func LPushX(db *SaveDBTables, args []string) Result {
 	for _, value := range values {
 		list.L.Insert(0, value)
 	}
+	db.addAof(ToCmdLine2("lpushx", args...))
 	return CreateStrResult(C_OK, strconv.Itoa(len(values)))
 }
 
@@ -202,6 +205,7 @@ func LRem(db *SaveDBTables, args []string) Result {
 	}
 	if removed > 0 {
 		//persistence
+		db.addAof(ToCmdLine2("lrem", args...))
 	}
 
 	return CreateStrResult(C_OK, strconv.Itoa(removed))
@@ -240,6 +244,7 @@ func LSet(db *SaveDBTables, args []string) Result {
 
 	list.L.Set(index, value)
 	db.AllKeys.PutKey(key, TypeList)
+	db.addAof(ToCmdLine2("lset", args...))
 	return CreateResult(C_OK, nil)
 }
 
@@ -264,7 +269,7 @@ func RPop(db *SaveDBTables, args []string) Result {
 		Del(db, args)
 	}
 	//persistence
-
+	db.addAof(ToCmdLine2("rpop", args...))
 	return CreateStrResult(C_OK, val)
 }
 
@@ -299,7 +304,7 @@ func RPopLPush(db *SaveDBTables, args []string) Result {
 	if list.L.Len() == 0 {
 		Del(db, args)
 	}
-
+	db.addAof(ToCmdLine2("rpoplpush", args...))
 	return CreateStrResult(C_OK, val)
 }
 
@@ -320,6 +325,7 @@ func RPush(db *SaveDBTables, args []string) Result {
 	for _, value := range values {
 		list.L.Add(value)
 	}
+	db.addAof(ToCmdLine2("rpush", args...))
 	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }
 
@@ -343,6 +349,7 @@ func RPushX(db *SaveDBTables, args []string) Result {
 	for _, value := range values {
 		list.L.Add(value)
 	}
+	db.addAof(ToCmdLine2("rpushx", args...))
 	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }
 
@@ -384,6 +391,7 @@ func LTrim(db *SaveDBTables, args []string) Result {
 	for i := 0; i < rightCount && list.L.Len() > 0; i++ {
 		list.L.RemoveLast()
 	}
+	db.addAof(ToCmdLine2("ltrim", args...))
 	return CreateResult(C_OK, nil)
 }
 
@@ -425,5 +433,6 @@ func LInsert(db *SaveDBTables, args []string) Result {
 	} else {
 		list.L.Insert(index+1, val)
 	}
+	db.addAof(ToCmdLine2("linsert", args...))
 	return CreateStrResult(C_OK, strconv.Itoa(list.L.Len()))
 }

@@ -27,6 +27,7 @@ func (persister *Persister) GenerateRDB(rdbFilename string) error {
 	if err != nil {
 		return err
 	}
+	log.SaveDBLogger.Infof("rdb file create successful.")
 	return nil
 }
 
@@ -85,6 +86,7 @@ func (persister *Persister) startGenerateRDB(newListener Listener, hook func()) 
 func (persister *Persister) generateRDB(ctx *RewriteCtx) error {
 	// load aof tmpFile
 	tmpPersister := persister.newRewriteHandler()
+	//ctx.fileSize是aof文件大小
 	tmpPersister.LoadAof(int(ctx.fileSize))
 
 	encoder := rdb.NewEncoder(ctx.tmpFile).EnableCompress()

@@ -285,13 +285,13 @@ func NewSingleServer() {
 	//先判断是否开启aof
 	if Config.AppendOnly {
 		validAof = fileExists(GetAofFilePath())
-		aofHandler, err := NewPersister2(*Server,
-			GetAofFilePath(), true, Config.Appendfsync)
-		if err != nil {
-			panic(err)
-		}
-		Server.bindPersister(aofHandler)
 	}
+	aofHandler, err := NewPersister2(*Server, true, Config.Appendfsync)
+	if err != nil {
+		panic(err)
+	}
+	Server.bindPersister(aofHandler)
+	//如果aof文件不存在则加载rdb
 	if Config.RDBFilename != "" && !validAof {
 		// load rdb
 		err := Server.loadRdbFile()

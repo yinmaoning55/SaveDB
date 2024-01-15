@@ -26,14 +26,14 @@ func init() {
 	saveCommandMap["exists"] = saveDBCommand{name: "exists", saveCommandProc: Exists, arity: 1, funcKeys: readFirstKey}
 
 	saveCommandMap["hmset"] = saveDBCommand{name: "hmset", saveCommandProc: HmSet, arity: -1, funcKeys: writeFirstKey}
-	saveCommandMap["hget"] = saveDBCommand{name: "hget", saveCommandProc: HMGet, arity: 2, funcKeys: writeFirstKey}
+	saveCommandMap["hget"] = saveDBCommand{name: "hget", saveCommandProc: HGet, arity: 2, funcKeys: writeFirstKey}
 	saveCommandMap["hdel"] = saveDBCommand{name: "hdel", saveCommandProc: HDel, arity: -1, funcKeys: writeFirstKey}
 	saveCommandMap["hexists"] = saveDBCommand{name: "hexists", saveCommandProc: HExists, arity: 2, funcKeys: readAllKeys}
 	saveCommandMap["hcard"] = saveDBCommand{name: "hcard", saveCommandProc: HCard, arity: 1, funcKeys: readFirstKey}
 	saveCommandMap["hgetall"] = saveDBCommand{name: "hgetall", saveCommandProc: HGetAll, arity: 1, funcKeys: readFirstKey}
 
 	saveCommandMap["sadd"] = saveDBCommand{name: "sadd", saveCommandProc: SAdd, arity: -1, funcKeys: writeFirstKey}
-	saveCommandMap["smove"] = saveDBCommand{name: "smove", saveCommandProc: SMove, arity: -1, funcKeys: writeFirstKey}
+	saveCommandMap["srem"] = saveDBCommand{name: "srem", saveCommandProc: SRem, arity: -1, funcKeys: writeFirstKey}
 	saveCommandMap["shaskey"] = saveDBCommand{name: "shaskey", saveCommandProc: SHasKey, arity: 1, funcKeys: writeFirstKey}
 	saveCommandMap["spop"] = saveDBCommand{name: "spop", saveCommandProc: SPop, arity: 1, funcKeys: writeFirstKey}
 	saveCommandMap["scard"] = saveDBCommand{name: "scard", saveCommandProc: SCard, arity: 1, funcKeys: readFirstKey}
@@ -141,6 +141,7 @@ func makeDB(index int) *SaveDBTables {
 	db.Expires = make(map[string]time.Time)
 	db.AllKeys = NewLKeys()
 	db.index = index
+	db.addAof = func(line CmdLine) {}
 	return db
 }
 
@@ -158,9 +159,10 @@ func BGSaveRDB() Result {
 		defer func() {
 			if err := recover(); err != nil {
 				log.SaveDBLogger.Errorf("bgsave error %v", err)
-				PrintStackTrace()
+				log.SaveDBLogger.Errorf("bgsave error stack %v", PrintStackTrace())
 			}
 		}()
+		log.SaveDBLogger.Infof("Background saving started.")
 		err := Server.persister.GenerateRDB(Config.RDBFilename)
 		if err != nil {
 			log.SaveDBLogger.Errorf("bgsave error %v", err)
@@ -193,13 +195,13 @@ func (s *SaveServer) Exec(c *Connection, msg *Message) {
 		} else {
 			wm = createWriterMsg(CreateStrResult(C_OK, OK_STR))
 		}
-		if c != nil {
+		if c.Writer != nil {
 			c.Writer <- wm
 		}
 		return
 	} else if cmd == "bgsave" {
 		wm := createWriterMsg(BGSaveRDB())
-		if c != nil {
+		if c.Writer != nil {
 			c.Writer <- wm
 		}
 		return
@@ -212,7 +214,7 @@ func (s *SaveServer) Exec(c *Connection, msg *Message) {
 	FindDB(c.dbIndex).Locks(readKeys, writeKeys)
 	wMsg := createWriterMsg(commandFunc.saveCommandProc(FindDB(c.dbIndex), msg.Args))
 	//写回
-	if c != nil {
+	if c.Writer != nil {
 		c.Writer <- wMsg
 	}
 	FindDB(c.dbIndex).UnLocks(readKeys, writeKeys)

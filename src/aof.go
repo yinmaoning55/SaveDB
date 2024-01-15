@@ -1,7 +1,6 @@
 package src
 
 import (
-	"context"
 	"io"
 	"os"
 	"savedb/src/log"
@@ -37,42 +36,6 @@ type payload struct {
 type Listener interface {
 	// Callback will be called-back after receiving a aof payload
 	Callback([]CmdLine)
-}
-
-func NewPersister(db SaveServer, filename string, load bool, fsync string, tmpDBMaker func() SaveServer) (*Persister, error) {
-	persister := &Persister{}
-	persister.aofFsync = strings.ToLower(fsync)
-	persister.db = db
-	persister.tmpDBMaker = tmpDBMaker
-	persister.currentDB = 0
-	// load aof file if needed
-	if load {
-		persister.LoadAof(0)
-	}
-	//打开文件时的标志位，使用位掩码
-	//os.O_APPEND: 将文件指针设置为文件末尾，在文件中追加数据。
-	//os.O_CREATE: 如果文件不存在，则创建文件。
-	//os.O_RDWR: 以读写方式打开文件。
-	aofFile, err := os.OpenFile(GetAofFilePath(), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return nil, err
-	}
-	persister.aofFile = aofFile
-	persister.aofChan = make(chan *payload, aofQueueSize)
-	persister.aofFinished = make(chan struct{})
-	persister.listeners = make(map[Listener]struct{})
-	// start aof goroutine to write aof file in background and fsync periodically if needed (see fsyncEverySecond)
-	go func() {
-		persister.listenCmd()
-	}()
-	ctx, cancel := context.WithCancel(context.Background())
-	persister.ctx = ctx
-	persister.cancel = cancel
-	// fsync every second if needed
-	if persister.aofFsync == FsyncEverySec {
-		persister.fsyncEverySecond()
-	}
-	return persister, nil
 }
 
 func (persister *Persister) RemoveListener(listener Listener) {
@@ -160,10 +123,18 @@ func (persister *Persister) LoadAof(maxBytes int) {
 		log.SaveDBLogger.Warn(err)
 		return
 	}
+	rdbFile, err := os.Open(GetRDBFilePath())
+	if err != nil {
+		if _, ok := err.(*os.PathError); ok {
+			return
+		}
+		log.SaveDBLogger.Warn(err)
+		return
+	}
 	defer file.Close()
 
 	// load rdb preamble if needed
-	decoder := rdb.NewDecoder(file)
+	decoder := rdb.NewDecoder(rdbFile)
 	err = persister.db.LoadRDB(decoder)
 	if err != nil {
 		// no rdb preamble
@@ -202,10 +173,11 @@ func (persister *Persister) LoadAof(maxBytes int) {
 			log.SaveDBLogger.Error("require multi bulk protocol")
 			continue
 		}
+		c := NewFakeConn()
 		s := BytesArrayToStringArray(r.Args)
 		msg := CreateMsg(nil, s[0], s[1:])
 		//插入数据库
-		persister.db.Exec(nil, msg)
+		persister.db.Exec(c, msg)
 		if strings.ToLower(string(r.Args[0])) == "select" {
 			// execSelect success, here must be no error
 			dbIndex, err := strconv.Atoi(string(r.Args[1]))
@@ -256,6 +228,7 @@ func (persister *Persister) generateAof(ctx *RewriteCtx) error {
 	// rewrite aof tmpFile
 	tmpFile := ctx.tmpFile
 	// load aof tmpFile
+	//指向临时的db persister也是临时的
 	tmpAof := persister.newRewriteHandler()
 	tmpAof.LoadAof(int(ctx.fileSize))
 	for i := 0; i < dbsSize; i++ {

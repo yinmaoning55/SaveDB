@@ -22,7 +22,7 @@ func (db *SaveDBTables) GetOrCreateHash(key string) (*Hash, error) {
 		val = NewHash()
 		db.Data.PutWithLock(key, val)
 		db.AllKeys.PutKey(key, TypeHash)
-		return nil, fmt.Errorf("type conversion error")
+		return val.(*Hash), nil
 	}
 	if _, ok := val.(*Hash); !ok {
 		return nil, fmt.Errorf("")
@@ -64,7 +64,7 @@ func HmSet(db *SaveDBTables, args []string) Result {
 	return CreateResult(C_OK, []byte(strconv.Itoa(len(values))))
 }
 
-func HMGet(db *SaveDBTables, args []string) Result {
+func HGet(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	key2 := args[1]
 	// get entity
@@ -137,7 +137,7 @@ func HGetAll(db *SaveDBTables, args []string) Result {
 	if err != nil {
 		return CreateStrResult(C_ERR, err.Error())
 	}
-	if v != nil {
+	if v == nil {
 		return CreateStrResult(C_ERR, "hash not exist")
 	}
 

@@ -171,11 +171,15 @@ func fileExists(filename string) bool {
 	return err == nil && !info.IsDir()
 }
 
-func PrintStackTrace() {
+func PrintStackTrace() error {
 	// 获取堆栈信息
 	buf := make([]byte, 1<<16)
 	stackSize := runtime.Stack(buf, false)
-
 	// 打印堆栈信息
-	fmt.Printf("堆栈信息:\n%s", buf[:stackSize])
+	return fmt.Errorf("堆栈信息:\n%s", buf[:stackSize])
+}
+
+func NewFakeConn() *Connection {
+	c := &Connection{}
+	return c
 }

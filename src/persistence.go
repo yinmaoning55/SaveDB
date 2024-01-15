@@ -7,6 +7,7 @@ import (
 	"github.com/hdt3213/rdb/core"
 	rdb "github.com/hdt3213/rdb/parser"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -56,12 +57,14 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 		case rdb.StringType:
 			str := o.(*rdb.StringObject)
 			entity = str.Value
+			db.PutKey(o.GetKey(), TypeStr)
 		case rdb.ListType:
 			listObj := o.(*rdb.ListObject)
 			l := NewList()
 			for _, v := range listObj.Values {
 				l.L.Add(v)
 			}
+			db.PutKey(o.GetKey(), TypeList)
 			entity = l
 		case rdb.HashType:
 			hashObj := o.(*rdb.HashObject)
@@ -70,6 +73,7 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 				v1 := string(v)
 				hash.M[k] = &v1
 			}
+			db.PutKey(o.GetKey(), TypeHash)
 			entity = &hash
 		case rdb.SetType:
 			setObj := o.(*rdb.SetObject)
@@ -77,6 +81,7 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 			for _, mem := range setObj.Members {
 				set.M[string(mem)] = &struct{}{}
 			}
+			db.PutKey(o.GetKey(), TypeSet)
 			entity = &set
 		case rdb.ZSetType:
 			zsetObj := o.(*rdb.ZSetObject)
@@ -84,6 +89,7 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 			for _, e := range zsetObj.Entries {
 				zSet.Z.Add(e.Member, e.Score)
 			}
+			db.PutKey(o.GetKey(), TypeZSet)
 			entity = &zSet
 		}
 		if entity != nil {
@@ -92,18 +98,54 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 				db.Expires[o.GetKey()] = *o.GetExpiration()
 			}
 			// add to aof
-			//db.addAof(aof.EntityToCmd(o.GetKey(), entity).Args)
+			db.addAof(EntityToCmd(o.GetKey(), entity).Args)
 		}
 		return true
 	})
 }
 
-func NewPersister2(db SaveServer, filename string, load bool, fsync string) (*Persister, error) {
-	return NewPersister(db, filename, load, fsync, func() SaveServer {
+func NewPersister2(db SaveServer, load bool, fsync string) (*Persister, error) {
+	return NewPersister(db, load, fsync, func() SaveServer {
 		return MakeAuxiliaryServer()
 	})
 }
-
+func NewPersister(db SaveServer, load bool, fsync string, tmpDBMaker func() SaveServer) (*Persister, error) {
+	persister := &Persister{}
+	persister.aofFsync = strings.ToLower(fsync)
+	persister.db = db
+	persister.tmpDBMaker = tmpDBMaker
+	persister.currentDB = 0
+	// load aof file if needed
+	if load {
+		persister.LoadAof(0)
+	}
+	//打开文件时的标志位，使用位掩码
+	//os.O_APPEND: 将文件指针设置为文件末尾，在文件中追加数据。
+	//os.O_CREATE: 如果文件不存在，则创建文件。
+	//os.O_RDWR: 以读写方式打开文件。
+	if Config.AppendOnly {
+		aofFile, err := os.OpenFile(GetAofFilePath(), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
+		if err != nil {
+			return nil, err
+		}
+		persister.aofFile = aofFile
+		persister.aofChan = make(chan *payload, aofQueueSize)
+		persister.aofFinished = make(chan struct{})
+	}
+	persister.listeners = make(map[Listener]struct{})
+	// start aof goroutine to write aof file in background and fsync periodically if needed (see fsyncEverySecond)
+	go func() {
+		persister.listenCmd()
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	persister.ctx = ctx
+	persister.cancel = cancel
+	// fsync every second if needed
+	if persister.aofFsync == FsyncEverySec {
+		persister.fsyncEverySecond()
+	}
+	return persister, nil
+}
 func (server *SaveServer) AddAof(dbIndex int, cmdLine CmdLine) {
 	if server.persister != nil {
 		server.persister.SaveCmdLine(dbIndex, cmdLine)

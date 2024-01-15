@@ -57,29 +57,31 @@ func SAdd(db *SaveDBTables, args []string) Result {
 	for _, value := range args[1:] {
 		set.M[value] = &struct{}{}
 	}
-
+	db.addAof(ToCmdLine2("sadd", args...))
 	return CreateStrResult(C_OK, strconv.Itoa(len(args[1:])))
 }
-
-func SMove(db *SaveDBTables, args []string) Result {
+func SRem(db *SaveDBTables, args []string) Result {
 	key := args[0]
-	set, err := db.GetSet(key)
-	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+	members := args[1:]
+	set, errReply := db.GetSet(key)
+	if errReply != nil {
+		return CreateStrResult(C_ERR, errReply.Error())
 	}
 	if set == nil {
 		return CreateStrResult(C_ERR, "key inexistence")
 	}
-	values := args[1:]
-	if len(values) == 0 || values[0] == "" {
-		return CreateStrResult(C_ERR, "value is null")
+	counter := 0
+	for _, member := range members {
+		delete(set.M, member)
+		counter++
 	}
-
-	for _, value := range values {
-		delete(set.M, value)
+	if len(set.M) == 0 {
+		Del(db, args)
 	}
-	return CreateStrResult(C_OK, strconv.Itoa(len(values)))
-
+	if counter > 0 {
+		db.addAof(ToCmdLine2("srem", args...))
+	}
+	return CreateStrResult(C_OK, strconv.Itoa(counter))
 }
 
 func SHasKey(db *SaveDBTables, args []string) Result {
@@ -88,7 +90,7 @@ func SHasKey(db *SaveDBTables, args []string) Result {
 	if err != nil {
 		return CreateStrResult(C_ERR, err.Error())
 	}
-	if v != nil {
+	if v == nil {
 		return CreateStrResult(C_OK, "-1")
 	}
 	return CreateStrResult(C_OK, "1")
@@ -105,7 +107,7 @@ func SPop(db *SaveDBTables, args []string) Result {
 	}
 	v, _ := db.GetSet(key)
 
-	if v != nil {
+	if v == nil {
 		return CreateStrResult(C_OK, "-1")
 	}
 	for val, _ := range v.M {
