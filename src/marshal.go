@@ -14,14 +14,14 @@ func EntityToCmd(key string, entity any) *MultiBulkReply {
 	switch entity.(type) {
 	case []byte:
 		cmd = stringToCmd(key, entity.([]byte))
-	case List:
-		cmd = listToCmd(key, entity.(List))
-	case Set:
-		cmd = setToCmd(key, entity.(Set))
-	case Hash:
-		cmd = hashToCmd(key, entity.(Hash))
-	case ZSet:
-		cmd = zSetToCmd(key, entity.(ZSet))
+	case *List:
+		cmd = listToCmd(key, entity.(*List))
+	case *Set:
+		cmd = setToCmd(key, entity.(*Set))
+	case *Hash:
+		cmd = hashToCmd(key, entity.(*Hash))
+	case *ZSet:
+		cmd = zSetToCmd(key, entity.(*ZSet))
 	}
 	return cmd
 }
@@ -38,7 +38,7 @@ func stringToCmd(key string, bytes []byte) *MultiBulkReply {
 
 var rPushAllCmd = []byte("RPUSH")
 
-func listToCmd(key string, list List) *MultiBulkReply {
+func listToCmd(key string, list *List) *MultiBulkReply {
 	args := make([][]byte, 2+list.L.Len())
 	args[0] = rPushAllCmd
 	args[1] = []byte(key)
@@ -52,7 +52,7 @@ func listToCmd(key string, list List) *MultiBulkReply {
 
 var sAddCmd = []byte("SADD")
 
-func setToCmd(key string, set Set) *MultiBulkReply {
+func setToCmd(key string, set *Set) *MultiBulkReply {
 	args := make([][]byte, 2+len(set.M))
 	args[0] = sAddCmd
 	args[1] = []byte(key)
@@ -66,7 +66,7 @@ func setToCmd(key string, set Set) *MultiBulkReply {
 
 var hMSetCmd = []byte("HMSET")
 
-func hashToCmd(key string, hash Hash) *MultiBulkReply {
+func hashToCmd(key string, hash *Hash) *MultiBulkReply {
 	args := make([][]byte, 2+len(hash.M)*2)
 	args[0] = hMSetCmd
 	args[1] = []byte(key)
@@ -82,7 +82,7 @@ func hashToCmd(key string, hash Hash) *MultiBulkReply {
 
 var zAddCmd = []byte("ZADD")
 
-func zSetToCmd(key string, zset ZSet) *MultiBulkReply {
+func zSetToCmd(key string, zset *ZSet) *MultiBulkReply {
 	args := make([][]byte, 2+zset.Z.Len()*2)
 	args[0] = zAddCmd
 	args[1] = []byte(key)

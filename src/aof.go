@@ -126,26 +126,27 @@ func (persister *Persister) LoadAof(maxBytes int) {
 	rdbFile, err := os.Open(GetRDBFilePath())
 	if err != nil {
 		if _, ok := err.(*os.PathError); ok {
-			return
+			log.SaveDBLogger.Warn(err)
 		}
-		log.SaveDBLogger.Warn(err)
-		return
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+		_ = rdbFile.Close()
+	}()
 
 	// load rdb preamble if needed
 	decoder := rdb.NewDecoder(rdbFile)
 	err = persister.db.LoadRDB(decoder)
-	if err != nil {
-		// no rdb preamble
-		//offset 设置为 0，表示不进行偏移，而 whence 设置为 io.SeekStart，表示将文件指针设置到文件的起始位置。
-		_, _ = file.Seek(0, io.SeekStart)
-	} else {
-		// has rdb preamble
-		//设置文件从哪里开始读
-		_, _ = file.Seek(int64(decoder.GetReadCount())+1, io.SeekStart)
+	////offset 设置为 0，表示不进行偏移，而 whence 设置为 io.SeekStart，表示将文件指针设置到文件的起始位置。
+	_, _ = file.Seek(0, io.SeekStart)
+	if err == nil {
 		//上次落盘到现在产生的aof日志
 		maxBytes = maxBytes - decoder.GetReadCount()
+		if maxBytes > 0 {
+			// has rdb preamble
+			//设置文件从哪里开始读
+			_, _ = file.Seek(int64(decoder.GetReadCount())+1, io.SeekStart)
+		}
 	}
 	var reader io.Reader
 	if maxBytes > 0 {
@@ -156,6 +157,7 @@ func (persister *Persister) LoadAof(maxBytes int) {
 	}
 	//异步加载aof文件 通过channel传递
 	ch := ParseStream(reader)
+	c := NewFakeConn()
 	for p := range ch {
 		if p.Err != nil {
 			if p.Err == io.EOF {
@@ -173,9 +175,11 @@ func (persister *Persister) LoadAof(maxBytes int) {
 			log.SaveDBLogger.Error("require multi bulk protocol")
 			continue
 		}
-		c := NewFakeConn()
+
 		s := BytesArrayToStringArray(r.Args)
-		msg := CreateMsg(nil, s[0], s[1:])
+		command := strings.ToLower(s[0])
+		//fmt.Println("command=", command, "args=", s[1:])
+		msg := CreateMsg(nil, command, s[1:])
 		//插入数据库
 		persister.db.Exec(c, msg)
 		if strings.ToLower(string(r.Args[0])) == "select" {
@@ -190,8 +194,10 @@ func (persister *Persister) LoadAof(maxBytes int) {
 
 func (persister *Persister) Fsync() {
 	persister.pausingAof.Lock()
-	if err := persister.aofFile.Sync(); err != nil {
-		log.SaveDBLogger.Errorf("fsync failed: %v", err)
+	if persister.aofFile != nil {
+		if err := persister.aofFile.Sync(); err != nil {
+			log.SaveDBLogger.Errorf("fsync failed: %v", err)
+		}
 	}
 	persister.pausingAof.Unlock()
 }

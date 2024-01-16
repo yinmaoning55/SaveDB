@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"gopkg.in/yaml.v3"
+	_ "gopkg.in/yaml.v3"
 	"io"
 	"io/ioutil"
 	"net"
@@ -126,7 +127,7 @@ func (c *Connection) ReadMsg() {
 		}
 
 		words := strings.Fields(str)
-		command := words[0]
+		command := strings.ToLower(words[0])
 		com, ok := saveCommandMap[command]
 		if command == "heart" {
 			log.SaveDBLogger.Infof("heart packet conn=%v", c.Conn.RemoteAddr())
@@ -221,6 +222,17 @@ func ReturnErr(str string, c *Connection) {
 	msg := createWriterMsg(CreateStrResult(C_ERR, str))
 	c.Writer <- msg
 }
+func CreateSpecialCMD(c *Connection, result Result, err error) {
+	var wm *Message
+	if err != nil {
+		wm = createWriterMsg(CreateStrResult(C_ERR, err.Error()))
+	} else {
+		wm = createWriterMsg(result)
+	}
+	if c.Writer != nil {
+		c.Writer <- wm
+	}
+}
 
 var Config = &serverConfig{}
 
@@ -282,7 +294,8 @@ func NewSingleServer() {
 		panic(fmt.Errorf("create tmp dir failed: %v", err))
 	}
 	validAof := false
-	//先判断是否开启aof
+	//1.先判断是否开启aof
+	//2.如果开启就判断是否存在rdb文件，使用rdb+aof的混合模式恢复数据
 	if Config.AppendOnly {
 		validAof = fileExists(GetAofFilePath())
 	}
@@ -291,7 +304,7 @@ func NewSingleServer() {
 		panic(err)
 	}
 	Server.bindPersister(aofHandler)
-	//如果aof文件不存在则加载rdb
+	//3.如果aof文件不存在则加载rdb
 	if Config.RDBFilename != "" && !validAof {
 		// load rdb
 		err := Server.loadRdbFile()

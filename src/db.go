@@ -112,7 +112,7 @@ func (db *SaveDBTables) ForEach(i int, cb func(key string, data any, expiration 
 		return cb(key, raw, expiration)
 	})
 }
-func (db *SaveDBTables) PutEntity(key string, entity *any) int {
+func (db *SaveDBTables) PutEntity(key string, entity any) int {
 	ret := db.Data.PutWithLock(key, entity)
 	//todo callbacks
 	return ret
@@ -168,9 +168,17 @@ func BGSaveRDB() Result {
 			log.SaveDBLogger.Errorf("bgsave error %v", err)
 		}
 	}()
-	return CreateStrResult(C_OK, "Background saving started")
+	return CreateStrResult(C_OK, "Background saving started.")
 }
-
+func BGReWriteAof() Result {
+	go func() {
+		err := Server.persister.Rewrite()
+		if err != nil {
+			log.SaveDBLogger.Errorf("bgrewriteaof error %v", err)
+		}
+	}()
+	return CreateStrResult(C_OK, "Background bgrewriteaof started.")
+}
 func (db *SaveDBTables) Locks(readKeys, writeKeys []string) {
 	if readKeys == nil && writeKeys == nil {
 		return
@@ -186,27 +194,27 @@ func (db *SaveDBTables) UnLocks(readKeys, writeKeys []string) {
 }
 func (s *SaveServer) Exec(c *Connection, msg *Message) {
 	cmd := *msg.Command
+	var wm *Message
 	if cmd == "select" {
 		index, _ := strconv.Atoi(msg.Args[0])
-		err := SelectDB(index, c)
-		var wm *Message
-		if err != nil {
-			wm = createWriterMsg(CreateStrResult(C_ERR, err.Error()))
-		} else {
-			wm = createWriterMsg(CreateStrResult(C_OK, OK_STR))
-		}
-		if c.Writer != nil {
-			c.Writer <- wm
-		}
+		CreateSpecialCMD(c, CreateStrResult(C_OK, OK_STR), SelectDB(index, c))
 		return
 	} else if cmd == "bgsave" {
-		wm := createWriterMsg(BGSaveRDB())
+		CreateSpecialCMD(c, BGSaveRDB(), nil)
+		return
+	} else if cmd == "bgrewriteaof" {
+		CreateSpecialCMD(c, BGReWriteAof(), nil)
+		return
+	}
+	commandFunc, ok := saveCommandMap[cmd]
+	if !ok {
+		log.SaveDBLogger.Errorf("command [%s] error ", cmd)
+		wm = createWriterMsg(CreateStrResult(C_ERR, "command error"))
 		if c.Writer != nil {
 			c.Writer <- wm
 		}
 		return
 	}
-	commandFunc := saveCommandMap[cmd]
 	var readKeys, writeKeys []string
 	if commandFunc.funcKeys != nil {
 		readKeys, writeKeys = commandFunc.funcKeys(msg.Args)

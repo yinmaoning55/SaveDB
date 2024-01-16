@@ -74,7 +74,7 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 				hash.M[k] = &v1
 			}
 			db.PutKey(o.GetKey(), TypeHash)
-			entity = &hash
+			entity = hash
 		case rdb.SetType:
 			setObj := o.(*rdb.SetObject)
 			set := NewSet()
@@ -82,7 +82,7 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 				set.M[string(mem)] = &struct{}{}
 			}
 			db.PutKey(o.GetKey(), TypeSet)
-			entity = &set
+			entity = set
 		case rdb.ZSetType:
 			zsetObj := o.(*rdb.ZSetObject)
 			zSet := NewZSet()
@@ -90,15 +90,17 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 				zSet.Z.Add(e.Member, e.Score)
 			}
 			db.PutKey(o.GetKey(), TypeZSet)
-			entity = &zSet
+			entity = zSet
 		}
 		if entity != nil {
-			db.PutEntity(o.GetKey(), &entity)
+			db.PutEntity(o.GetKey(), entity)
 			if o.GetExpiration() != nil {
 				db.Expires[o.GetKey()] = *o.GetExpiration()
 			}
 			// add to aof
-			db.addAof(EntityToCmd(o.GetKey(), entity).Args)
+			args := EntityToCmd(o.GetKey(), entity).Args
+			//启动时这里的addAof方法是个空方法
+			db.addAof(args)
 		}
 		return true
 	})
@@ -115,15 +117,15 @@ func NewPersister(db SaveServer, load bool, fsync string, tmpDBMaker func() Save
 	persister.db = db
 	persister.tmpDBMaker = tmpDBMaker
 	persister.currentDB = 0
-	// load aof file if needed
-	if load {
-		persister.LoadAof(0)
-	}
-	//打开文件时的标志位，使用位掩码
-	//os.O_APPEND: 将文件指针设置为文件末尾，在文件中追加数据。
-	//os.O_CREATE: 如果文件不存在，则创建文件。
-	//os.O_RDWR: 以读写方式打开文件。
 	if Config.AppendOnly {
+		if load {
+			info, _ := os.Stat(GetAofFilePath())
+			_ = int(info.Size())
+			//todo 启动时暂时只重放aof文件
+			persister.LoadAof(0)
+		}
+		//打开文件时的标志位，使用位掩码
+		//os.O_APPEND: 将文件指针设置为文件末尾，在文件中追加数据。 os.O_CREATE: 如果文件不存在，则创建文件。 os.O_RDWR: 以读写方式打开文件。
 		aofFile, err := os.OpenFile(GetAofFilePath(), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
 		if err != nil {
 			return nil, err

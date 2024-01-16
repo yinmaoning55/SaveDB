@@ -66,7 +66,7 @@ func (persister *Persister) startGenerateRDB(newListener Listener, hook func()) 
 	fileInfo, _ := os.Stat(GetAofFilePath())
 	filesize := fileInfo.Size()
 	// create tmp file
-	file, err := os.CreateTemp(Config.Dir, "*.aof")
+	file, err := os.CreateTemp(Config.Dir, "*.rdb")
 	if err != nil {
 		log.SaveDBLogger.Warn("tmp file create failed")
 		return nil, err
@@ -84,10 +84,10 @@ func (persister *Persister) startGenerateRDB(newListener Listener, hook func()) 
 }
 
 func (persister *Persister) generateRDB(ctx *RewriteCtx) error {
-	// load aof tmpFile
+	//使用aof重新生成临时的dbs 然后遍历备份
 	tmpPersister := persister.newRewriteHandler()
-	//ctx.fileSize是aof文件大小
-	tmpPersister.LoadAof(int(ctx.fileSize))
+	//todo 暂时只重放aof文件
+	tmpPersister.LoadAof(0)
 
 	encoder := rdb.NewEncoder(ctx.tmpFile).EnableCompress()
 	err := encoder.WriteHeader()
@@ -114,7 +114,7 @@ func (persister *Persister) generateRDB(ctx *RewriteCtx) error {
 	}
 
 	for i := 0; i < dbsSize; i++ {
-		db := FindDB(i)
+		db := tmpPersister.db.Dbs[i].Load().(*SaveDBTables)
 		keyCount := db.keys.Len()
 		ttlCount := len(db.Expires)
 		if keyCount == 0 {
