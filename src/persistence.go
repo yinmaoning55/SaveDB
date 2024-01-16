@@ -25,7 +25,7 @@ type Persister struct {
 	aofFsync string
 	// aof goroutine will send msg to main goroutine through this channel when aof tasks finished and ready to shut down
 	aofFinished chan struct{}
-	// pause aof for start/finish aof rewrite progress
+	//暂停开始/结束 重写进程
 	pausingAof sync.Mutex
 	currentDB  int
 	listeners  map[Listener]struct{}
@@ -51,7 +51,7 @@ func (server *SaveServer) loadRdbFile() error {
 
 func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 	return dec.Parse(func(o rdb.RedisObject) bool {
-		db := FindDB(o.GetDBIndex())
+		db := server.FindDB(o.GetDBIndex())
 		var entity any
 		switch o.GetType() {
 		case rdb.StringType:
@@ -108,7 +108,7 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 
 func NewPersister2(db SaveServer, load bool, fsync string) (*Persister, error) {
 	return NewPersister(db, load, fsync, func() SaveServer {
-		return MakeAuxiliaryServer()
+		return MakeTempServer()
 	})
 }
 func NewPersister(db SaveServer, load bool, fsync string, tmpDBMaker func() SaveServer) (*Persister, error) {
@@ -119,8 +119,8 @@ func NewPersister(db SaveServer, load bool, fsync string, tmpDBMaker func() Save
 	persister.currentDB = 0
 	if Config.AppendOnly {
 		if load {
-			info, _ := os.Stat(GetAofFilePath())
-			_ = int(info.Size())
+			//info, _ := os.Stat(GetAofFilePath())
+			//_ = int(info.Size())
 			//todo 启动时暂时只重放aof文件
 			persister.LoadAof(0)
 		}
@@ -167,7 +167,7 @@ func (server *SaveServer) bindPersister(aofHandler *Persister) {
 	}
 }
 
-func MakeAuxiliaryServer() SaveServer {
+func MakeTempServer() SaveServer {
 	mdb := SaveServer{}
 	mdb.Dbs = make([]*atomic.Value, dbsSize)
 	for i := range mdb.Dbs {

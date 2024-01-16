@@ -1,6 +1,7 @@
 package src
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"savedb/src/log"
@@ -8,8 +9,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	rdb "github.com/hdt3213/rdb/core"
 )
 
 type CmdLine = [][]byte
@@ -107,8 +106,6 @@ func (persister *Persister) writeAof(p *payload) {
 }
 
 func (persister *Persister) LoadAof(maxBytes int) {
-	// persister.db.Exec may call persister.AddAof
-	// delete aofChan to prevent loaded commands back into aofChan
 	aofChan := persister.aofChan
 	persister.aofChan = nil
 	defer func(aofChan chan *payload) {
@@ -123,30 +120,31 @@ func (persister *Persister) LoadAof(maxBytes int) {
 		log.SaveDBLogger.Warn(err)
 		return
 	}
-	rdbFile, err := os.Open(GetRDBFilePath())
-	if err != nil {
-		if _, ok := err.(*os.PathError); ok {
-			log.SaveDBLogger.Warn(err)
-		}
-	}
+	// todo 混合模式暂不实现
+	//rdbFile, err := os.Open(GetRDBFilePath())
+	//if err != nil {
+	//	if _, ok := err.(*os.PathError); ok {
+	//		log.SaveDBLogger.Warn(err)
+	//	}
+	//}
 	defer func() {
 		_ = file.Close()
-		_ = rdbFile.Close()
+		//_ = rdbFile.Close()
 	}()
 
-	// load rdb preamble if needed
-	decoder := rdb.NewDecoder(rdbFile)
-	err = persister.db.LoadRDB(decoder)
-	////offset 设置为 0，表示不进行偏移，而 whence 设置为 io.SeekStart，表示将文件指针设置到文件的起始位置。
+	//decoder := rdb.NewDecoder(rdbFile)
+	//err = persister.db.LoadRDB(decoder)
+	err = fmt.Errorf("")
+	//offset 设置为 0，表示不进行偏移，而 whence 设置为 io.SeekStart，表示将文件指针设置到文件的起始位置。
 	_, _ = file.Seek(0, io.SeekStart)
 	if err == nil {
 		//上次落盘到现在产生的aof日志
-		maxBytes = maxBytes - decoder.GetReadCount()
-		if maxBytes > 0 {
-			// has rdb preamble
-			//设置文件从哪里开始读
-			_, _ = file.Seek(int64(decoder.GetReadCount())+1, io.SeekStart)
-		}
+		//maxBytes = maxBytes - decoder.GetReadCount()
+		//if maxBytes > 0 {
+		//	// has rdb preamble
+		//	//设置文件从哪里开始读
+		//	_, _ = file.Seek(int64(decoder.GetReadCount())+1, io.SeekStart)
+		//}
 	}
 	var reader io.Reader
 	if maxBytes > 0 {
@@ -238,6 +236,10 @@ func (persister *Persister) generateAof(ctx *RewriteCtx) error {
 	tmpAof := persister.newRewriteHandler()
 	tmpAof.LoadAof(int(ctx.fileSize))
 	for i := 0; i < dbsSize; i++ {
+		size := tmpAof.db.FindDB(i).keys.Len()
+		if size <= 0 {
+			continue
+		}
 		// select db
 		data := MakeMultiBulkReply(ToCmdLine("select", strconv.Itoa(i))).ToBytes()
 		_, err := tmpFile.Write(data)

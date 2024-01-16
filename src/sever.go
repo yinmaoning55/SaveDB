@@ -268,11 +268,11 @@ type SaveServer struct {
 	persister *Persister
 }
 
-func (s SaveServer) ForEche(index int, cb func(key string, entity any, expiration *time.Time) bool) {
-	FindDB(index).ForEach(0, cb)
+func (s *SaveServer) ForEche(index int, cb func(key string, entity any, expiration *time.Time) bool) {
+	s.FindDB(index).ForEach(0, cb)
 }
-func FindDB(index int) *SaveDBTables {
-	return Server.Dbs[index].Load().(*SaveDBTables)
+func (s *SaveServer) FindDB(index int) *SaveDBTables {
+	return s.Dbs[index].Load().(*SaveDBTables)
 }
 
 func SelectDB(index int, conn *Connection) error {

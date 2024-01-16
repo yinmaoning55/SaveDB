@@ -74,8 +74,10 @@ func (persister *Persister) StartRewrite() (*RewriteCtx, error) {
 	}, nil
 }
 
+// 有互斥锁,线程安全
 func (persister *Persister) FinishRewrite(ctx *RewriteCtx) {
-	persister.pausingAof.Lock() // pausing aof
+	//加锁 和aof写操作互斥
+	persister.pausingAof.Lock()
 	defer persister.pausingAof.Unlock()
 	tmpFile := ctx.tmpFile
 
@@ -91,20 +93,20 @@ func (persister *Persister) FinishRewrite(ctx *RewriteCtx) {
 			_ = src.Close()
 			_ = tmpFile.Close()
 		}()
-
+		//0：相对于文件的起始位置。 1：相对于当前文件指针位置。 2：相对于文件的末尾。
 		_, err = src.Seek(ctx.fileSize, 0)
 		if err != nil {
 			log.SaveDBLogger.Error("seek failed: " + err.Error())
 			return true
 		}
-		// sync tmpFile's db index with online aofFile
-		data := ToBytes(ToCmdLine("select", strconv.Itoa(ctx.dbIdx)))
-		_, err = tmpFile.Write(data)
-		if err != nil {
-			log.SaveDBLogger.Error("tmp file rewrite failed: " + err.Error())
-			return true
-		}
-		// copy data
+		//文件尾部切换到当前的数据
+		//data := ToBytes(ToCmdLine("select", strconv.Itoa(ctx.dbIdx)))
+		//_, err = tmpFile.Write(data)
+		//if err != nil {
+		//	log.SaveDBLogger.Error("tmp file rewrite failed: " + err.Error())
+		//	return true
+		//}
+		//把src复制到temp中 只复制重写期间产生的数据
 		_, err = io.Copy(tmpFile, src)
 		if err != nil {
 			log.SaveDBLogger.Error("copy aof filed failed: " + err.Error())
@@ -121,7 +123,7 @@ func (persister *Persister) FinishRewrite(ctx *RewriteCtx) {
 	if err := os.Rename(tmpFile.Name(), GetAofFilePath()); err != nil {
 		log.SaveDBLogger.Warn(err)
 	}
-	// reopen aof file for further write
+	// 重新打开文件以便进一步写入
 	aofFile, err := os.OpenFile(GetAofFilePath(), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		panic(err)

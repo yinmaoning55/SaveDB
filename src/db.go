@@ -17,6 +17,7 @@ func init() {
 	saveCommandMap = make(map[string]saveDBCommand)
 	saveCommandMap["select"] = saveDBCommand{name: "select", arity: 1}
 	saveCommandMap["bgsave"] = saveDBCommand{name: "bgsave", arity: 0}
+	saveCommandMap["bgrewriteaof"] = saveDBCommand{name: "bgrewriteaof", arity: 0}
 
 	saveCommandMap["get"] = saveDBCommand{name: "get", saveCommandProc: Get, arity: 1, funcKeys: readFirstKey}
 	saveCommandMap["set"] = saveDBCommand{name: "set", saveCommandProc: SetExc, arity: 2, funcKeys: writeFirstKey}
@@ -170,6 +171,12 @@ func BGSaveRDB() Result {
 	}()
 	return CreateStrResult(C_OK, "Background saving started.")
 }
+
+// Redis中触发重写
+// 1.执行 bgrewriteaof 命令 已实现
+// 2.手动打开 AOF 开关（config set appendonly yes） todo
+// 3.从库加载完主库 RDB 后（AOF 被启动的前提下） todo
+// 4.定时触发：AOF 文件大小比例超出阈值、AOF 文件大小绝对值超出阈值（AOF 被启动的前提下）todo
 func BGReWriteAof() Result {
 	go func() {
 		err := Server.persister.Rewrite()
@@ -219,11 +226,12 @@ func (s *SaveServer) Exec(c *Connection, msg *Message) {
 	if commandFunc.funcKeys != nil {
 		readKeys, writeKeys = commandFunc.funcKeys(msg.Args)
 	}
-	FindDB(c.dbIndex).Locks(readKeys, writeKeys)
-	wMsg := createWriterMsg(commandFunc.saveCommandProc(FindDB(c.dbIndex), msg.Args))
+	db := s.FindDB(c.dbIndex)
+	db.Locks(readKeys, writeKeys)
+	wMsg := createWriterMsg(commandFunc.saveCommandProc(db, msg.Args))
 	//写回
 	if c.Writer != nil {
 		c.Writer <- wMsg
 	}
-	FindDB(c.dbIndex).UnLocks(readKeys, writeKeys)
+	db.UnLocks(readKeys, writeKeys)
 }
