@@ -37,21 +37,24 @@ func Expire(db *SaveDBTables, args []string) Result {
 	}
 	ttl := time.Duration(expire*1000) * time.Millisecond
 	expireAt := time.Now().Add(ttl)
-	db.Expires[key] = expireAt
-	timewheel.AddTimer(expireAt, key, func() {
+	PutExpire(db, key, expireAt)
+	db.addAof(MakeExpireCmd(key, expireAt).Args)
+	return CreateStrResult(C_OK, OK_STR)
+}
+func PutExpire(db *SaveDBTables, key string, time time.Time) {
+	db.Expires[key] = time
+	args := make([]string, 1)
+	args = append(args, key)
+	timewheel.AddTimer(time, key, func() {
 		keys := make([]string, 0)
 		keys = append(keys, key)
 		db.Locks(nil, keys)
 		defer func() {
 			db.UnLocks(nil, keys)
 		}()
-		db.Locks(nil, keys)
 		Del(db, args)
 	})
-	db.addAof(MakeExpireCmd(key, expireAt).Args)
-	return CreateStrResult(C_OK, OK_STR)
 }
-
 func TTL(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	value, ok := db.Expires[key]
@@ -64,12 +67,17 @@ func TTL(db *SaveDBTables, args []string) Result {
 }
 
 func Del(db *SaveDBTables, args []string) Result {
+	var deleted int
 	for _, k := range args {
 		if !db.AllKeys.Exist(k) {
 			continue
 		}
 		db.Data.RemoveWithLock(k)
 		db.AllKeys.RemoveKey(db, k)
+		deleted++
+	}
+	if deleted > 0 {
+		db.addAof(ToCmdLine2("del", args...))
 	}
 	return CreateStrResult(C_OK, OK_STR)
 }

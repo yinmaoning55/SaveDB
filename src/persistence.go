@@ -95,7 +95,7 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 		if entity != nil {
 			db.PutEntity(o.GetKey(), entity)
 			if o.GetExpiration() != nil {
-				db.Expires[o.GetKey()] = *o.GetExpiration()
+				PutExpire(db, o.GetKey(), *o.GetExpiration())
 			}
 			// add to aof
 			args := EntityToCmd(o.GetKey(), entity).Args

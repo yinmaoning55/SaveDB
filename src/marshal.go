@@ -97,7 +97,7 @@ func zSetToCmd(key string, zset *ZSet) *MultiBulkReply {
 	return MakeMultiBulkReply(args)
 }
 
-var pExpireAtBytes = []byte("PEXPIREAT")
+var pExpireAtBytes = []byte("expire")
 
 // MakeExpireCmd generates command line to set expiration for the given key
 func MakeExpireCmd(key string, expireAt time.Time) *MultiBulkReply {
