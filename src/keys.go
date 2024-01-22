@@ -30,16 +30,19 @@ func Expire(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	expire, err := strconv.ParseInt(args[1], 10, 64)
 	if err != nil {
-		return CreateStrResult(C_ERR, "args error, cant transfer int")
+		return CreateStrResult(CErr, "args error, cant transfer int")
 	}
 	if !db.AllKeys.Exist(key) {
-		return CreateStrResult(C_ERR, "key not exist")
+		return CreateStrResult(CErr, "key not exist")
 	}
-	ttl := time.Duration(expire*1000) * time.Millisecond
-	expireAt := time.Now().Add(ttl)
-	PutExpire(db, key, expireAt)
-	db.addAof(MakeExpireCmd(key, expireAt).Args)
-	return CreateStrResult(C_OK, OK_STR)
+	nowTime := time.Now().UnixMilli()
+	if nowTime > expire {
+		return Result{}
+	}
+	ttl := time.Unix(expire/1000, 0)
+	PutExpire(db, key, ttl)
+	db.addAof(MakeExpireCmd(key, ttl).Args)
+	return CreateStrResult(COk, OkStr)
 }
 func PutExpire(db *SaveDBTables, key string, time time.Time) {
 	db.Expires[key] = time
@@ -59,11 +62,11 @@ func TTL(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	value, ok := db.Expires[key]
 	if !ok {
-		return CreateStrResult(C_OK, "-2")
+		return CreateStrResult(COk, "-2")
 	}
 	nowTime := time.Now().Unix()
 	ttl := value.Unix() - nowTime
-	return CreateStrResult(C_OK, strconv.Itoa(int(ttl)))
+	return CreateStrResult(COk, strconv.Itoa(int(ttl)))
 }
 
 func Del(db *SaveDBTables, args []string) Result {
@@ -79,7 +82,7 @@ func Del(db *SaveDBTables, args []string) Result {
 	if deleted > 0 {
 		db.addAof(ToCmdLine2("del", args...))
 	}
-	return CreateStrResult(C_OK, OK_STR)
+	return CreateStrResult(COk, OkStr)
 }
 
 func Keys(db *SaveDBTables, args []string) Result {
@@ -95,15 +98,15 @@ func Keys(db *SaveDBTables, args []string) Result {
 	}
 	iter.Release()
 	res := strings.Join(matchingKeys, ",")
-	return CreateStrResult(C_OK, res)
+	return CreateStrResult(COk, res)
 }
 
 func Exists(db *SaveDBTables, args []string) Result {
 	_, ok := db.Data.GetWithLock(args[0])
 	if ok {
-		return CreateStrResult(C_OK, "1")
+		return CreateStrResult(COk, "1")
 	} else {
-		return CreateStrResult(C_OK, "0")
+		return CreateStrResult(COk, "0")
 	}
 }
 
@@ -145,7 +148,7 @@ func (a *AllKeys) ActivateKey(key string) {
 	if !ok {
 		return
 	}
-	value.saveObj.lru = time.Now().Unix()
+	updateLFU(value.saveObj)
 	//多线程需要保证线程安全
 	value.saveObj.refCount += 1
 }

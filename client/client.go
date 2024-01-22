@@ -40,6 +40,18 @@ func main() {
 			fmt.Println("退出程序。")
 			break
 		}
+		cmd := strings.Split(input, " ")
+		if cmd[0] == "expire" {
+			expire, err := strconv.ParseInt(cmd[2], 10, 64)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			ttl := time.Duration(expire*1000) * time.Millisecond
+			expireAt := time.Now().Add(ttl)
+			cmd[2] = strconv.FormatInt(expireAt.UnixNano()/1e6, 10)
+			input = strings.Join(cmd, " ")
+		}
 		resStr := client.SendMsg(input)
 		fmt.Println(resStr)
 	}

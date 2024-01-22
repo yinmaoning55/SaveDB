@@ -42,7 +42,7 @@ func (db *SaveDBTables) GetHash(key string) (*Hash, error) {
 }
 func HmSet(db *SaveDBTables, args []string) Result {
 	if len(args)%2 != 1 {
-		return CreateStrResult(C_ERR, "args number error")
+		return CreateStrResult(CErr, "args number error")
 	}
 	key := args[0]
 	size := (len(args) - 1) / 2
@@ -55,13 +55,13 @@ func HmSet(db *SaveDBTables, args []string) Result {
 
 	hash, err := db.GetOrCreateHash(key)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	for i, value := range fields {
 		hash.M[value] = &values[i]
 	}
 	db.addAof(ToCmdLine2("hmset", args...))
-	return CreateResult(C_OK, []byte(strconv.Itoa(len(values))))
+	return CreateResult(COk, []byte(strconv.Itoa(len(values))))
 }
 
 func HGet(db *SaveDBTables, args []string) Result {
@@ -70,38 +70,38 @@ func HGet(db *SaveDBTables, args []string) Result {
 	// get entity
 	dict, err := db.GetHash(key)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if dict == nil {
-		return CreateStrResult(C_ERR, "key not exist")
+		return CreateStrResult(CErr, "key not exist")
 	}
 	value, ok := dict.M[key2]
 	if !ok {
-		return CreateStrResult(C_ERR, "key2 not exist")
+		return CreateStrResult(CErr, "key2 not exist")
 	}
 
-	return CreateStrResult(C_OK, *value)
+	return CreateStrResult(COk, *value)
 }
 
 func HDel(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	hash, err := db.GetHash(key)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if hash == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 
 	if len(args[1:]) == 0 || key == "" {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 
 	for _, value := range args[1:] {
 		delete(hash.M, value)
 	}
 	db.addAof(ToCmdLine2("hdel", args...))
-	return CreateResult(C_OK, []byte(strconv.Itoa(len(args[1:]))))
+	return CreateResult(COk, []byte(strconv.Itoa(len(args[1:]))))
 }
 
 func HExists(db *SaveDBTables, args []string) Result {
@@ -109,36 +109,36 @@ func HExists(db *SaveDBTables, args []string) Result {
 	key2 := args[1]
 	v, err := db.GetHash(key1)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if v != nil {
 		if _, ok := v.M[key2]; ok {
-			return CreateResult(C_OK, nil)
+			return CreateResult(COk, nil)
 		}
 	}
-	return CreateStrResult(C_ERR, "key inexistence")
+	return CreateStrResult(CErr, "key inexistence")
 }
 
 func HCard(db *SaveDBTables, args []string) Result {
 	if string(Exists(db, args).Res) != "1" {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	key := args[0]
 	v, err := db.GetHash(key)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
-	return CreateResult(C_OK, []byte(strconv.Itoa(len(v.M))))
+	return CreateResult(COk, []byte(strconv.Itoa(len(v.M))))
 }
 
 func HGetAll(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	v, err := db.GetHash(key)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if v == nil {
-		return CreateStrResult(C_ERR, "hash not exist")
+		return CreateStrResult(CErr, "hash not exist")
 	}
 
 	records := make([]string, 0)
@@ -155,5 +155,5 @@ func HGetAll(db *SaveDBTables, args []string) Result {
 		}
 		index++
 	}
-	return CreateStrResult(C_OK, builder.String())
+	return CreateStrResult(COk, builder.String())
 }

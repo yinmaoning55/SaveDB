@@ -30,27 +30,33 @@ type Persister struct {
 	currentDB  int
 	listeners  map[Listener]struct{}
 	// reuse cmdLine buffer
-	buffer []CmdLine
+	buffer  []CmdLine
+	loading *atomic.Bool
 }
 
 func (server *SaveServer) loadRdbFile() error {
+	server.persister.loading.Store(true)
 	rdbFile, err := os.Open(GetRDBFilePath())
 	if err != nil {
 		return fmt.Errorf("open rdb file failed " + err.Error())
 	}
 	defer func() {
 		_ = rdbFile.Close()
+		server.persister.loading.Store(false)
 	}()
 	decoder := rdb.NewDecoder(rdbFile)
 	err = server.LoadRDB(decoder)
 	if err != nil {
 		return fmt.Errorf("load rdb file failed " + err.Error())
 	}
+
 	return nil
 }
 
 func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
-	return dec.Parse(func(o rdb.RedisObject) bool {
+	server.persister.loading.Store(true)
+	defer server.persister.loading.Store(false)
+	f := dec.Parse(func(o rdb.RedisObject) bool {
 		db := server.FindDB(o.GetDBIndex())
 		var entity any
 		switch o.GetType() {
@@ -104,6 +110,8 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 		}
 		return true
 	})
+
+	return f
 }
 
 func NewPersister2(db SaveServer, load bool, fsync string) (*Persister, error) {
@@ -146,6 +154,9 @@ func NewPersister(db SaveServer, load bool, fsync string, tmpDBMaker func() Save
 	if persister.aofFsync == FsyncEverySec {
 		persister.fsyncEverySecond()
 	}
+	holder := &atomic.Bool{}
+	holder.Store(false)
+	persister.loading = holder
 	return persister, nil
 }
 func (server *SaveServer) AddAof(dbIndex int, cmdLine CmdLine) {

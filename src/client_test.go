@@ -4,16 +4,23 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
 func Test3(t *testing.T) {
-	client := StartClient("localhost", 40000)
-	time.Sleep(time.Second * 1)
-	str := client.SendMsg("fdsfdsfdsfdsgfds")
-	fmt.Println("返回:", str)
+	expire, err := strconv.ParseInt("1705477164630", 10, 64)
+	fmt.Println(expire)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	ttl := time.Duration(expire*1000) * time.Millisecond
+	expireAt := time.Now().Add(ttl)
+	s := strconv.FormatInt(expireAt.UnixNano()/1e6, 10)
+	fmt.Println(s)
 }
 func TestClinet(t *testing.T) {
 	args := os.Args

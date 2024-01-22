@@ -52,23 +52,23 @@ func SAdd(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	set, err := db.GetOrCreateSet(key)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	for _, value := range args[1:] {
 		set.M[value] = &struct{}{}
 	}
 	db.addAof(ToCmdLine2("sadd", args...))
-	return CreateStrResult(C_OK, strconv.Itoa(len(args[1:])))
+	return CreateStrResult(COk, strconv.Itoa(len(args[1:])))
 }
 func SRem(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	members := args[1:]
 	set, errReply := db.GetSet(key)
 	if errReply != nil {
-		return CreateStrResult(C_ERR, errReply.Error())
+		return CreateStrResult(CErr, errReply.Error())
 	}
 	if set == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	counter := 0
 	for _, member := range members {
@@ -81,19 +81,19 @@ func SRem(db *SaveDBTables, args []string) Result {
 	if counter > 0 {
 		db.addAof(ToCmdLine2("srem", args...))
 	}
-	return CreateStrResult(C_OK, strconv.Itoa(counter))
+	return CreateStrResult(COk, strconv.Itoa(counter))
 }
 
 func SHasKey(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	v, err := db.GetSet(key)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if v == nil {
-		return CreateStrResult(C_OK, "-1")
+		return CreateStrResult(COk, "-1")
 	}
-	return CreateStrResult(C_OK, "1")
+	return CreateStrResult(COk, "1")
 }
 
 func SPop(db *SaveDBTables, args []string) Result {
@@ -103,19 +103,19 @@ func SPop(db *SaveDBTables, args []string) Result {
 		return res
 	}
 	if string(res.Res) != "1" {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	v, _ := db.GetSet(key)
 
 	if v == nil {
-		return CreateStrResult(C_OK, "-1")
+		return CreateStrResult(COk, "-1")
 	}
 	for val, _ := range v.M {
 		delete(v.M, val)
-		return CreateStrResult(C_OK, val)
+		return CreateStrResult(COk, val)
 	}
 
-	return CreateStrResult(C_ERR, "value inexistence")
+	return CreateStrResult(CErr, "value inexistence")
 }
 
 func SCard(db *SaveDBTables, args []string) Result {
@@ -125,33 +125,33 @@ func SCard(db *SaveDBTables, args []string) Result {
 		return res
 	}
 	if string(res.Res) != "1" {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	v, _ := db.GetSet(key)
 
-	return CreateStrResult(C_OK, strconv.Itoa(len(v.M)))
+	return CreateStrResult(COk, strconv.Itoa(len(v.M)))
 }
 
 func SDiff(db *SaveDBTables, args []string) Result {
-	if (SHasKey(db, args[:1]).Status != C_OK) || (SHasKey(db, args[1:]).Status != C_OK) {
-		return CreateStrResult(C_ERR, "set not exist")
+	if (SHasKey(db, args[:1]).Status != COk) || (SHasKey(db, args[1:]).Status != COk) {
+		return CreateStrResult(CErr, "set not exist")
 	}
 	records := make([]string, 0)
 	key1 := args[0]
 	key2 := args[1]
 	set, err := db.GetSet(key1)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if set == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	set2, err := db.GetSet(key2)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if set2 == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	for v, _ := range set.M {
 		if _, ok := set2.M[v]; !ok {
@@ -159,28 +159,28 @@ func SDiff(db *SaveDBTables, args []string) Result {
 		}
 	}
 	result := strings.Join(records, ",")
-	return CreateStrResult(C_OK, result)
+	return CreateStrResult(COk, result)
 }
 
 func SInter(db *SaveDBTables, args []string) Result {
-	if SHasKey(db, args[:1]).Status != C_OK || SHasKey(db, args[1:]).Status != C_OK {
-		return CreateStrResult(C_ERR, "set not exist")
+	if SHasKey(db, args[:1]).Status != COk || SHasKey(db, args[1:]).Status != COk {
+		return CreateStrResult(CErr, "set not exist")
 	}
 	key1 := args[0]
 	key2 := args[1]
 	set, err := db.GetSet(key1)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if set == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	set2, err := db.GetSet(key2)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if set2 == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	values := make([]string, 0)
 	for v, _ := range set.M {
@@ -189,82 +189,82 @@ func SInter(db *SaveDBTables, args []string) Result {
 		}
 	}
 	result := strings.Join(values, ", ")
-	return CreateStrResult(C_OK, result)
+	return CreateStrResult(COk, result)
 }
 
 func SIsMember(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	set, err := db.GetSet(key)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if set == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	value := args[1]
 	if _, ok := set.M[value]; ok {
-		return CreateResult(C_OK, nil)
+		return CreateResult(COk, nil)
 	}
 
-	return CreateStrResult(C_ERR, "set not exist")
+	return CreateStrResult(CErr, "set not exist")
 }
 
 func SAreMembers(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	set, err := db.GetSet(key)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if set == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 
 	values := args[1:]
 	for _, value := range values {
 		if _, ok := set.M[value]; !ok {
-			return CreateStrResult(C_ERR, "set not exist")
+			return CreateStrResult(CErr, "set not exist")
 		}
 	}
-	return CreateResult(C_OK, nil)
+	return CreateResult(COk, nil)
 }
 
 func SMembers(db *SaveDBTables, args []string) Result {
 	key := args[0]
 	set, err := db.GetSet(key)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if set == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	records := make([]string, 0)
 	for k, _ := range set.M {
 		records = append(records, k)
 	}
 	result := strings.Join(records, ",")
-	return CreateStrResult(C_OK, result)
+	return CreateStrResult(COk, result)
 }
 
 func SUnion(db *SaveDBTables, args []string) Result {
-	if SHasKey(db, args[:1]).Status != C_OK || SHasKey(db, args[1:]).Status != C_OK {
-		return CreateStrResult(C_ERR, "set not exist")
+	if SHasKey(db, args[:1]).Status != COk || SHasKey(db, args[1:]).Status != COk {
+		return CreateStrResult(CErr, "set not exist")
 	}
 
 	key1 := args[0]
 	key2 := args[1]
 	set, err := db.GetSet(key1)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if set == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	set2, err := db.GetSet(key2)
 	if err != nil {
-		return CreateStrResult(C_ERR, err.Error())
+		return CreateStrResult(CErr, err.Error())
 	}
 	if set2 == nil {
-		return CreateStrResult(C_ERR, "key inexistence")
+		return CreateStrResult(CErr, "key inexistence")
 	}
 	record1s := make([]string, 0)
 	for k, _ := range set.M {
@@ -277,5 +277,5 @@ func SUnion(db *SaveDBTables, args []string) Result {
 		}
 	}
 	result := strings.Join(record2s, ",")
-	return CreateStrResult(C_OK, result)
+	return CreateStrResult(COk, result)
 }

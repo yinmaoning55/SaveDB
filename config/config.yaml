@@ -4,8 +4,7 @@ port: 40000
 #always 同步写回，everysec 每秒写回, no 操作系统控制
 appendfsync: everysec
 
-#当重写AOF文件时，Redis可以在
-#AOF文件，以便更快地重写和恢复。当这个选项被打开时
+#当重写AOF文件时, 这个选项被打开，Redis可以更快地重写和恢复。
 #重写的AOF文件由两个不同的节组成:[RDB文件][AOF尾部]
 #加载时，Redis识别出AOF文件以“Redis”开头。
 #字符串并加载带前缀的RDB文件，并继续加载AOF尾部。
@@ -22,6 +21,9 @@ appendfilename: append.aof
 
 #启用或禁用AOF redis默认是关闭的
 appendonly: true
+
+#触发缓存淘汰的临界内存 为0表示不触发 mb
+maxmemory: 0
 
 logs:
   path: logs

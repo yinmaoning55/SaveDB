@@ -5,12 +5,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v3"
 	_ "gopkg.in/yaml.v3"
 	"io"
 	"io/ioutil"
 	"net"
 	"os"
+	"runtime"
 	"savedb/src/log"
 	"strconv"
 	"strings"
@@ -98,12 +100,13 @@ func (c *Connection) ReadMsg() {
 		c.ConnClose()
 	}()
 	for {
-		bufData := make([]byte, MSG_BUFFER_SIZE)
-		buff1 := bufData[:MSG_BUFFER_OFFSET]
+		bufData := make([]byte, MsgBufferSize)
+		buff1 := bufData[:MsgBufferOffset]
 		_, err := io.ReadFull(c.Conn, buff1)
 		if err != nil {
-			if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
-				log.SaveDBLogger.Infof("client close err %v, conn=%v", err, c.Conn.RemoteAddr())
+			if err.Error() == io.EOF.Error() || errors.Is(err, io.ErrUnexpectedEOF) {
+				log.SaveDBLogger.Infof("connection closed conn=%v", c.Conn.RemoteAddr())
+				c.ConnClose()
 			} else {
 				log.SaveDBLogger.Errorf("Read data error %v, conn=%v", err, c.Conn.RemoteAddr())
 			}
@@ -112,7 +115,7 @@ func (c *Connection) ReadMsg() {
 
 		var mlen int32
 		mlen = ReadInt(buff1)
-		bufd := bufData[MSG_BUFFER_OFFSET : mlen+MSG_BUFFER_OFFSET]
+		bufd := bufData[MsgBufferOffset : mlen+MsgBufferOffset]
 		_, err = io.ReadFull(c.Conn, bufd)
 		if err != nil {
 			log.SaveDBLogger.Errorf("Read data error %v, conn=%v", err, c.Conn.RemoteAddr())
@@ -219,13 +222,13 @@ func createWriterMsg(res Result) *Message {
 	return msg
 }
 func ReturnErr(str string, c *Connection) {
-	msg := createWriterMsg(CreateStrResult(C_ERR, str))
+	msg := createWriterMsg(CreateStrResult(CErr, str))
 	c.Writer <- msg
 }
 func CreateSpecialCMD(c *Connection, result Result, err error) {
 	var wm *Message
 	if err != nil {
-		wm = createWriterMsg(CreateStrResult(C_ERR, err.Error()))
+		wm = createWriterMsg(CreateStrResult(CErr, err.Error()))
 	} else {
 		wm = createWriterMsg(result)
 	}
@@ -244,6 +247,7 @@ type serverConfig struct {
 	RDBFilename       string         `yaml:"rdbfilename"`
 	AppendOnly        bool           `yaml:"appendonly"`
 	AppendFilename    string         `yaml:"appendfilename"`
+	Maxmemory         int            `yaml:"maxmemory"`
 	Logs              *log.LogConfig `yaml:"logs"`
 }
 
@@ -283,8 +287,13 @@ func SelectDB(index int, conn *Connection) error {
 	return nil
 }
 
+var CronManager *cron.Cron
+
 func InitServer() {
 	NewSingleServer()
+	CronManager = cron.New(cron.WithSeconds())
+	CronManager.Start()
+	_, _ = CronManager.AddFunc("@every 10s", printMemoryStats)
 }
 
 // 单机下启动
@@ -313,6 +322,20 @@ func NewSingleServer() {
 		}
 	}
 }
+
+// 打印堆内存使用情况
+func printMemoryStats() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	//当前程序中所有堆分配的对象的总大小
+	log.SaveDBLogger.Infof("heap monery: %v MiB", m.Alloc/1024/1024)
+	//从启动开始已经分配的总内存量。这个值包括已经释放的内存，以及仍然被使用的内存
+	log.SaveDBLogger.Infof("TotalAlloc: %v MiB", m.TotalAlloc/1024/1024)
+	//程序在运行时分配的所有内存，包括堆、栈和其他运行时使用的内存
+	log.SaveDBLogger.Infof("Sys: %v MiB", m.Sys/1024/1024)
+	log.SaveDBLogger.Infof("GC num: %v", m.NumGC)
+}
+
 func GetRDBFilePath() string {
 	return Config.Dir + "/" + Config.RDBFilename
 }

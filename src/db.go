@@ -121,7 +121,7 @@ func (db *SaveDBTables) PutEntity(key string, entity any) int {
 
 type SaveObject struct {
 	dataType byte    //key的数据类型
-	lru      int64   //redisObject的LRU时间， 毫秒
+	lru      uint32  //16bits 分钟时间戳 8bits 访问次数
 	refCount int16   //redisObject的引用计数
 	prt      *string //指向值的指针，8个字节
 
@@ -149,7 +149,7 @@ func makeDB(index int) *SaveDBTables {
 func NewSaveObject(key *string, keyType byte) *SaveObject {
 	o := &SaveObject{
 		dataType: keyType,
-		lru:      time.Now().Unix(),
+		lru:      uint32(LFUGetTimeInMinutes()<<16) | LfuInitVal,
 		prt:      key,
 	}
 	return o
@@ -169,10 +169,10 @@ func BGSaveRDB() Result {
 			log.SaveDBLogger.Errorf("bgsave error %v", err)
 		}
 	}()
-	return CreateStrResult(C_OK, "Background saving started.")
+	return CreateStrResult(COk, "Background saving started.")
 }
 
-// Redis中触发重写
+// Redis中触发重写的操作
 // 1.执行 bgrewriteaof 命令 已实现
 // 2.手动打开 AOF 开关（config set appendonly yes） todo
 // 3.从库加载完主库 RDB 后（AOF 被启动的前提下） todo
@@ -184,7 +184,7 @@ func BGReWriteAof() Result {
 			log.SaveDBLogger.Errorf("bgrewriteaof error %v", err)
 		}
 	}()
-	return CreateStrResult(C_OK, "Background bgrewriteaof started.")
+	return CreateStrResult(COk, "Background bgrewriteaof started.")
 }
 func (db *SaveDBTables) Locks(readKeys, writeKeys []string) {
 	if readKeys == nil && writeKeys == nil {
@@ -200,23 +200,27 @@ func (db *SaveDBTables) UnLocks(readKeys, writeKeys []string) {
 	db.Data.RWUnLocks(writeKeys, readKeys)
 }
 func (s *SaveServer) Exec(c *Connection, msg *Message) {
+	if Config.Maxmemory > 0 {
+		freeMemoryIfNeededAndSafe()
+	}
 	cmd := *msg.Command
 	var wm *Message
-	if cmd == "select" {
+	switch cmd {
+	case "select":
 		index, _ := strconv.Atoi(msg.Args[0])
-		CreateSpecialCMD(c, CreateStrResult(C_OK, OK_STR), SelectDB(index, c))
+		CreateSpecialCMD(c, CreateStrResult(COk, OkStr), SelectDB(index, c))
 		return
-	} else if cmd == "bgsave" {
+	case "bgsave":
 		CreateSpecialCMD(c, BGSaveRDB(), nil)
 		return
-	} else if cmd == "bgrewriteaof" {
+	case "bgrewriteaof":
 		CreateSpecialCMD(c, BGReWriteAof(), nil)
 		return
 	}
 	commandFunc, ok := saveCommandMap[cmd]
 	if !ok {
 		log.SaveDBLogger.Errorf("command [%s] error ", cmd)
-		wm = createWriterMsg(CreateStrResult(C_ERR, "command error"))
+		wm = createWriterMsg(CreateStrResult(CErr, "command error"))
 		if c.Writer != nil {
 			c.Writer <- wm
 		}
