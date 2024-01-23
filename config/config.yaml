@@ -22,7 +22,7 @@ appendfilename: append.aof
 #启用或禁用AOF redis默认是关闭的
 appendonly: true
 
-#触发缓存淘汰的临界内存 为0表示不触发 mb
+#触发缓存淘汰的临界内存 为0表示不触发 单位b
 maxmemory: 0
 
 logs:

@@ -30,8 +30,9 @@ type Persister struct {
 	currentDB  int
 	listeners  map[Listener]struct{}
 	// reuse cmdLine buffer
-	buffer  []CmdLine
-	loading *atomic.Bool
+	buffer         []CmdLine
+	loading        *atomic.Bool
+	usedMemorySize uint32
 }
 
 func (server *SaveServer) loadRdbFile() error {

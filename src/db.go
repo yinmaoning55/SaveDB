@@ -201,7 +201,11 @@ func (db *SaveDBTables) UnLocks(readKeys, writeKeys []string) {
 }
 func (s *SaveServer) Exec(c *Connection, msg *Message) {
 	if Config.Maxmemory > 0 {
-		freeMemoryIfNeededAndSafe()
+		status := freeMemoryIfNeededAndSafe()
+		if status != COk {
+			CreateSpecialCMD(c, CreateStrResult(CErr, "OutOfMemoryError"), nil)
+			return
+		}
 	}
 	cmd := *msg.Command
 	var wm *Message

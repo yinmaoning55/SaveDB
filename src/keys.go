@@ -148,9 +148,8 @@ func (a *AllKeys) ActivateKey(key string) {
 	if !ok {
 		return
 	}
+	//lfu衰减
 	updateLFU(value.saveObj)
-	//多线程需要保证线程安全
-	value.saveObj.refCount += 1
 }
 
 func (a *AllKeys) Exist(key string) bool {

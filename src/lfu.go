@@ -2,6 +2,8 @@ package src
 
 import (
 	"math/rand"
+	"runtime"
+	"savedb/src/log"
 	"time"
 )
 
@@ -9,7 +11,18 @@ const (
 	LfuInitVal                = 5
 	ConfigDefaultLfuDecayTime = 1
 	ConfigDefaultLfuLogFactor = 10
+	EvpoolSize                = 16
+	MaxmemorySamples          = 5
 )
+
+var EvictionPoolLRU []*evictionPoolEntry
+
+type evictionPoolEntry struct {
+	idle   uint64 //待淘汰的键值对的空闲时间
+	key    string //待淘汰的键值对的key
+	cached string //缓存的对象
+	dbid   int    //待淘汰键值对的key所在的数据库ID
+}
 
 func freeMemoryIfNeededAndSafe() int {
 	if !Server.persister.loading.Load() {
@@ -18,12 +31,51 @@ func freeMemoryIfNeededAndSafe() int {
 	return COk
 }
 func freeMemoryIfNeeded() int {
+	Server.persister.pausingAof.Lock()
+	defer Server.persister.pausingAof.Unlock()
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	//当前程序中所有堆分配的对象的总大小
+	usedMemory := uint32(m.Alloc / 1024 / 1024)
+	if usedMemory > Config.Maxmemory {
+		mem_tofree := usedMemory - Config.Maxmemory
+		log.SaveDBLogger.Warnw("OutOfMemory, mem_tofree:%d, start cache lfu.", mem_tofree)
+		for {
+			usedMemory = uint32(m.Alloc / 1024 / 1024)
+			if usedMemory < Config.Maxmemory {
+				break
+			}
+			var pool = EvictionPoolLRU
+			for i := 0; i < dbsSize; i++ {
+				evictionPoolPopulate(i, &Server.FindDB(i).AllKeys, pool)
+			}
+			for k := EvpoolSize - 1; k >= 0; k-- {
+				if pool[k].key == "" {
+					continue
+				}
+
+				bestdbid := pool[k].dbid
+				db := Server.FindDB(bestdbid)
+				args := make([]string, 1)
+				args = append(args, pool[k].key)
+
+				/* Remove the entry from the pool. */
+				Del(db, args)
+				pool[k].key = ""
+				pool[k].idle = 0
+			}
+			//TODO 手动GC一下?
+			runtime.GC()
+		}
+
+	}
 	return COk
 }
 func updateLFU(key *SaveObject) {
 	counter := LFUDecrAndReturn(key)
 	counter = LFULogIncr(counter)
 	key.lru = (uint32(LFUGetTimeInMinutes() << 8)) | uint32(counter)
+	key.refCount += 1
 }
 
 func LFUDecrAndReturn(key *SaveObject) uint8 {
@@ -79,4 +131,78 @@ func LFULogIncr(counter uint8) uint8 {
 		counter++
 	}
 	return counter
+}
+
+func evictionPoolAlloc() {
+	EvictionPoolLRU = make([]*evictionPoolEntry, EvpoolSize)
+	for i := 0; i < EvpoolSize; i++ {
+		e := &evictionPoolEntry{
+			idle: 0,
+			key:  "",
+		}
+		EvictionPoolLRU[i] = e
+	}
+}
+
+func dictGetSomeKeys(d *AllKeys, des []*SaveObject, count int) int {
+	stored := 0
+	maxsteps := count * 10
+	keysSize := d.keys.Len()
+	if d.keys.Len() < count {
+		count = d.keys.Len()
+	}
+
+	for stored < count && maxsteps > 0 {
+		var i = rand.Uint64() & uint64(keysSize)
+		v, _ := d.keys.GetAt(int(i))
+		he := v.saveObj
+		for he != nil {
+			continue
+		}
+		des[stored] = he
+		stored++
+		if stored == count {
+			return stored
+		}
+		maxsteps--
+	}
+	return stored
+}
+
+func evictionPoolPopulate(dbid int, sampledict *AllKeys, pool []*evictionPoolEntry) {
+	samples := make([]*SaveObject, MaxmemorySamples)
+	count := dictGetSomeKeys(sampledict, samples, MaxmemorySamples)
+	for i := 0; i < count; i++ {
+		o := samples[i]
+		idle := 255 - LFUDecrAndReturn(o)
+		var k = 0
+		for k < EvpoolSize &&
+			pool[k].key != "" &&
+			pool[k].idle < uint64(idle) {
+			k++
+		}
+		if k == 0 && pool[EvpoolSize-1].key != "" {
+			continue
+		} else if k < EvpoolSize && pool[k].key == "" {
+			/* Inserting into empty position. No setup needed before insert. */
+		} else {
+			if pool[EvpoolSize-1].key == "" {
+				cached := pool[EvpoolSize-1].cached
+				// 将元素向左移动一位
+				copy(pool[k+1:], pool[k:EvpoolSize-1])
+				pool[k].cached = cached
+			} else {
+				k--
+				cached := pool[0].cached
+				db := Server.FindDB(dbid)
+				args := make([]string, 1)
+				args = append(args, pool[0].key)
+				Del(db, args)
+				copy(pool, pool[1:k+1])
+				pool[k].cached = cached
+			}
+			pool[k].idle = uint64(idle)
+			pool[k].dbid = dbid
+		}
+	}
 }

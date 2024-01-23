@@ -247,7 +247,7 @@ type serverConfig struct {
 	RDBFilename       string         `yaml:"rdbfilename"`
 	AppendOnly        bool           `yaml:"appendonly"`
 	AppendFilename    string         `yaml:"appendfilename"`
-	Maxmemory         int            `yaml:"maxmemory"`
+	Maxmemory         uint32         `yaml:"maxmemory"`
 	Logs              *log.LogConfig `yaml:"logs"`
 }
 
@@ -290,6 +290,8 @@ func SelectDB(index int, conn *Connection) error {
 var CronManager *cron.Cron
 
 func InitServer() {
+	//Initialize the LRU keys pool
+	evictionPoolAlloc()
 	NewSingleServer()
 	CronManager = cron.New(cron.WithSeconds())
 	CronManager.Start()
@@ -328,11 +330,16 @@ func printMemoryStats() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	//当前程序中所有堆分配的对象的总大小
-	log.SaveDBLogger.Infof("heap monery: %v MiB", m.Alloc/1024/1024)
+	m1 := m.Alloc / 1024 / 1024
+	log.SaveDBLogger.Infof("heap monery: %v MiB", m1)
+	if Config.Maxmemory > 0 {
+		Server.persister.usedMemorySize = uint32(m1)
+	}
 	//从启动开始已经分配的总内存量。这个值包括已经释放的内存，以及仍然被使用的内存
 	log.SaveDBLogger.Infof("TotalAlloc: %v MiB", m.TotalAlloc/1024/1024)
 	//程序在运行时分配的所有内存，包括堆、栈和其他运行时使用的内存
-	log.SaveDBLogger.Infof("Sys: %v MiB", m.Sys/1024/1024)
+	s := m.Sys / 1024 / 1024
+	log.SaveDBLogger.Infof("Sys: %v MiB", s)
 	log.SaveDBLogger.Infof("GC num: %v", m.NumGC)
 }
 
