@@ -247,7 +247,7 @@ type serverConfig struct {
 	RDBFilename       string         `yaml:"rdbfilename"`
 	AppendOnly        bool           `yaml:"appendonly"`
 	AppendFilename    string         `yaml:"appendfilename"`
-	Maxmemory         uint32         `yaml:"maxmemory"`
+	Maxmemory         uint64         `yaml:"maxmemory"`
 	Logs              *log.LogConfig `yaml:"logs"`
 }
 
@@ -295,7 +295,7 @@ func InitServer() {
 	NewSingleServer()
 	CronManager = cron.New(cron.WithSeconds())
 	CronManager.Start()
-	_, _ = CronManager.AddFunc("@every 10s", printMemoryStats)
+	_, _ = CronManager.AddFunc("@every 5s", printMemoryStats)
 }
 
 // 单机下启动
@@ -310,9 +310,22 @@ func NewSingleServer() {
 	if Config.AppendOnly {
 		validAof = fileExists(GetAofFilePath())
 	}
-	aofHandler, err := NewPersister2(*Server, true, Config.Appendfsync)
+	aofHandler, err := NewPersister2(*Server, Config.Appendfsync)
 	if err != nil {
 		panic(err)
+	}
+	if Config.AppendOnly {
+		//todo 启动时暂时只重放aof文件
+		aofHandler.LoadAof(0)
+		//打开文件时的标志位，使用位掩码
+		//os.O_APPEND: 将文件指针设置为文件末尾，在文件中追加数据。 os.O_CREATE: 如果文件不存在，则创建文件。 os.O_RDWR: 以读写方式打开文件。
+		aofFile, err := os.OpenFile(GetAofFilePath(), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
+		if err != nil {
+			panic(err)
+		}
+		aofHandler.aofFile = aofFile
+		aofHandler.aofChan = make(chan *payload, aofQueueSize)
+		aofHandler.aofFinished = make(chan struct{})
 	}
 	Server.bindPersister(aofHandler)
 	//3.如果aof文件不存在则加载rdb
@@ -333,7 +346,7 @@ func printMemoryStats() {
 	m1 := m.Alloc / 1024 / 1024
 	log.SaveDBLogger.Infof("heap monery: %v MiB", m1)
 	if Config.Maxmemory > 0 {
-		Server.persister.usedMemorySize = uint32(m1)
+		Server.persister.usedMemorySize = m.Alloc
 	}
 	//从启动开始已经分配的总内存量。这个值包括已经释放的内存，以及仍然被使用的内存
 	log.SaveDBLogger.Infof("TotalAlloc: %v MiB", m.TotalAlloc/1024/1024)

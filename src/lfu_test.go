@@ -2,6 +2,7 @@ package src
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"testing"
 	"time"
@@ -28,11 +29,17 @@ func LFUGetTimeInMinutesTest(m int64) uint64 {
 var F []string
 
 func TestLFU2(t *testing.T) {
-	f := F
-	sds(f)
-	fmt.Println(F[2])
-	f2 := F
-	fmt.Println(f2[2])
+	step := 10
+	min := 0
+	max := step
+	for i := 0; i < 10; i++ {
+		rand.Seed(time.Now().UnixNano())
+		i := rand.Intn(max-min) + min
+		fmt.Println(i)
+		min += step
+		max += step
+	}
+
 }
 func sds(f []string) {
 	f[2] = "dsds"

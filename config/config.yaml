@@ -2,7 +2,7 @@
 port: 40000
 
 #always 同步写回，everysec 每秒写回, no 操作系统控制
-appendfsync: everysec
+appendfsync: always
 
 #当重写AOF文件时, 这个选项被打开，Redis可以更快地重写和恢复。
 #重写的AOF文件由两个不同的节组成:[RDB文件][AOF尾部]

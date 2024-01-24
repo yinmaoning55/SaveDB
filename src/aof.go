@@ -141,8 +141,8 @@ func (persister *Persister) LoadAof(maxBytes int) {
 		//上次落盘到现在产生的aof日志
 		//maxBytes = maxBytes - decoder.GetReadCount()
 		//if maxBytes > 0 {
-		//	// has rdb preamble
-		//	//设置文件从哪里开始读
+		//has rdb preamble
+		//设置文件从哪里开始读
 		//	_, _ = file.Seek(int64(decoder.GetReadCount())+1, io.SeekStart)
 		//}
 	}

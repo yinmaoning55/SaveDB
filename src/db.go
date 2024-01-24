@@ -20,7 +20,7 @@ func init() {
 	saveCommandMap["bgrewriteaof"] = saveDBCommand{name: "bgrewriteaof", arity: 0}
 
 	saveCommandMap["get"] = saveDBCommand{name: "get", saveCommandProc: Get, arity: 1, funcKeys: readFirstKey}
-	saveCommandMap["set"] = saveDBCommand{name: "set", saveCommandProc: SetExc, arity: 2, funcKeys: writeFirstKey}
+	saveCommandMap["set"] = saveDBCommand{name: "seset 1t", saveCommandProc: SetExc, arity: 2, funcKeys: writeFirstKey}
 	saveCommandMap["del"] = saveDBCommand{name: "del", saveCommandProc: Del, arity: -1, funcKeys: writeAllKeys}
 
 	saveCommandMap["keys"] = saveDBCommand{name: "keys", saveCommandProc: Keys, arity: 1}
@@ -200,8 +200,8 @@ func (db *SaveDBTables) UnLocks(readKeys, writeKeys []string) {
 	db.Data.RWUnLocks(writeKeys, readKeys)
 }
 func (s *SaveServer) Exec(c *Connection, msg *Message) {
-	if Config.Maxmemory > 0 {
-		status := freeMemoryIfNeededAndSafe()
+	if Config.Maxmemory > 0 && s.persister != nil {
+		status := s.persister.freeMemoryIfNeededAndSafe()
 		if status != COk {
 			CreateSpecialCMD(c, CreateStrResult(CErr, "OutOfMemoryError"), nil)
 			return

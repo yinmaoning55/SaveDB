@@ -32,7 +32,7 @@ type Persister struct {
 	// reuse cmdLine buffer
 	buffer         []CmdLine
 	loading        *atomic.Bool
-	usedMemorySize uint32
+	usedMemorySize uint64
 }
 
 func (server *SaveServer) loadRdbFile() error {
@@ -115,34 +115,20 @@ func (server *SaveServer) LoadRDB(dec *core.Decoder) error {
 	return f
 }
 
-func NewPersister2(db SaveServer, load bool, fsync string) (*Persister, error) {
-	return NewPersister(db, load, fsync, func() SaveServer {
+func NewPersister2(db SaveServer, fsync string) (*Persister, error) {
+	return NewPersister(db, fsync, func() SaveServer {
 		return MakeTempServer()
 	})
 }
-func NewPersister(db SaveServer, load bool, fsync string, tmpDBMaker func() SaveServer) (*Persister, error) {
+func NewPersister(db SaveServer, fsync string, tmpDBMaker func() SaveServer) (*Persister, error) {
 	persister := &Persister{}
 	persister.aofFsync = strings.ToLower(fsync)
 	persister.db = db
 	persister.tmpDBMaker = tmpDBMaker
 	persister.currentDB = 0
-	if Config.AppendOnly {
-		if load {
-			//info, _ := os.Stat(GetAofFilePath())
-			//_ = int(info.Size())
-			//todo 启动时暂时只重放aof文件
-			persister.LoadAof(0)
-		}
-		//打开文件时的标志位，使用位掩码
-		//os.O_APPEND: 将文件指针设置为文件末尾，在文件中追加数据。 os.O_CREATE: 如果文件不存在，则创建文件。 os.O_RDWR: 以读写方式打开文件。
-		aofFile, err := os.OpenFile(GetAofFilePath(), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
-		if err != nil {
-			return nil, err
-		}
-		persister.aofFile = aofFile
-		persister.aofChan = make(chan *payload, aofQueueSize)
-		persister.aofFinished = make(chan struct{})
-	}
+	holder := &atomic.Bool{}
+	holder.Store(false)
+	persister.loading = holder
 	persister.listeners = make(map[Listener]struct{})
 	// start aof goroutine to write aof file in background and fsync periodically if needed (see fsyncEverySecond)
 	go func() {
@@ -155,9 +141,7 @@ func NewPersister(db SaveServer, load bool, fsync string, tmpDBMaker func() Save
 	if persister.aofFsync == FsyncEverySec {
 		persister.fsyncEverySecond()
 	}
-	holder := &atomic.Bool{}
-	holder.Store(false)
-	persister.loading = holder
+
 	return persister, nil
 }
 func (server *SaveServer) AddAof(dbIndex int, cmdLine CmdLine) {

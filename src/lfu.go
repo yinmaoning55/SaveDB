@@ -24,8 +24,8 @@ type evictionPoolEntry struct {
 	dbid   int    //待淘汰键值对的key所在的数据库ID
 }
 
-func freeMemoryIfNeededAndSafe() int {
-	if !Server.persister.loading.Load() {
+func (p *Persister) freeMemoryIfNeededAndSafe() int {
+	if !p.loading.Load() {
 		return freeMemoryIfNeeded()
 	}
 	return COk
@@ -33,15 +33,18 @@ func freeMemoryIfNeededAndSafe() int {
 func freeMemoryIfNeeded() int {
 	Server.persister.pausingAof.Lock()
 	defer Server.persister.pausingAof.Unlock()
+	if Server.persister.usedMemorySize < Config.Maxmemory {
+		return COk
+	}
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	//当前程序中所有堆分配的对象的总大小
-	usedMemory := uint32(m.Alloc / 1024 / 1024)
+	usedMemory := m.Alloc
 	if usedMemory > Config.Maxmemory {
 		mem_tofree := usedMemory - Config.Maxmemory
-		log.SaveDBLogger.Warnw("OutOfMemory, mem_tofree:%d, start cache lfu.", mem_tofree)
+		log.SaveDBLogger.Warn("OutOfMemory, mem_tofree:%d, start cache lfu,release=", mem_tofree)
 		for {
-			usedMemory = uint32(m.Alloc / 1024 / 1024)
+			usedMemory = m.Alloc
 			if usedMemory < Config.Maxmemory {
 				break
 			}
@@ -67,7 +70,6 @@ func freeMemoryIfNeeded() int {
 			//TODO 手动GC一下?
 			runtime.GC()
 		}
-
 	}
 	return COk
 }
@@ -151,20 +153,31 @@ func dictGetSomeKeys(d *AllKeys, des []*SaveObject, count int) int {
 	if d.keys.Len() < count {
 		count = d.keys.Len()
 	}
-
+	if keysSize <= 0 {
+		return 0
+	}
+	step := keysSize / count
+	min := 0
+	max := step
 	for stored < count && maxsteps > 0 {
-		var i = rand.Uint64() & uint64(keysSize)
+		rand.Seed(time.Now().UnixNano())
+		i := rand.Intn(max-min) + min
+		maxsteps--
+		if i > keysSize-1 {
+			continue
+		}
 		v, _ := d.keys.GetAt(int(i))
 		he := v.saveObj
-		for he != nil {
+		for he == nil {
 			continue
 		}
 		des[stored] = he
 		stored++
-		if stored == count {
+		if stored >= count {
 			return stored
 		}
-		maxsteps--
+		min += step
+		max += step
 	}
 	return stored
 }
@@ -201,8 +214,9 @@ func evictionPoolPopulate(dbid int, sampledict *AllKeys, pool []*evictionPoolEnt
 				copy(pool, pool[1:k+1])
 				pool[k].cached = cached
 			}
-			pool[k].idle = uint64(idle)
-			pool[k].dbid = dbid
 		}
+		pool[k].key = *samples[i].prt
+		pool[k].idle = uint64(idle)
+		pool[k].dbid = dbid
 	}
 }
