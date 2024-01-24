@@ -237,6 +237,7 @@ func CreateSpecialCMD(c *Connection, result Result, err error) {
 	}
 }
 
+var SConfig = &SentinelConfig{}
 var Config = &serverConfig{}
 
 type serverConfig struct {
@@ -251,7 +252,7 @@ type serverConfig struct {
 	Logs              *log.LogConfig `yaml:"logs"`
 }
 
-func (config *serverConfig) LoadConfig(path string) {
+func (config *SentinelConfig) LoadSentinelConfig(path string) {
 	yamlFile, err := ioutil.ReadFile(path)
 	if err != nil {
 		fmt.Println("Open config file error", err.Error())

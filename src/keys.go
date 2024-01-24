@@ -169,3 +169,26 @@ func (a *AllKeys) GetKey(key string) *SaveObject {
 	}
 	return value.saveObj
 }
+
+func FlushAll() Result {
+	for _, db := range Server.Dbs {
+		dataBase := db.Load().(SaveDBTables)
+		dataBase.Data.Clear()
+		dataBase.keys.Clear()
+		for key := range dataBase.Expires {
+			timewheel.Cancel(key)
+		}
+		dataBase.Expires = make(map[string]time.Time)
+
+	}
+	return CreateStrResult(COk, OkStr)
+}
+func FlushDB(db *SaveDBTables, args []string) Result {
+	db.Data.Clear()
+	db.keys.Clear()
+	for key := range db.Expires {
+		timewheel.Cancel(key)
+	}
+	db.Expires = make(map[string]time.Time)
+	return CreateStrResult(COk, OkStr)
+}

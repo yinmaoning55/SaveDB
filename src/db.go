@@ -18,9 +18,11 @@ func init() {
 	saveCommandMap["select"] = saveDBCommand{name: "select", arity: 1}
 	saveCommandMap["bgsave"] = saveDBCommand{name: "bgsave", arity: 0}
 	saveCommandMap["bgrewriteaof"] = saveDBCommand{name: "bgrewriteaof", arity: 0}
+	saveCommandMap["flushall"] = saveDBCommand{name: "flushall", arity: 0}
+	saveCommandMap["flushdb"] = saveDBCommand{name: "flushdb", saveCommandProc: FlushDB, arity: 0}
 
 	saveCommandMap["get"] = saveDBCommand{name: "get", saveCommandProc: Get, arity: 1, funcKeys: readFirstKey}
-	saveCommandMap["set"] = saveDBCommand{name: "seset 1t", saveCommandProc: SetExc, arity: 2, funcKeys: writeFirstKey}
+	saveCommandMap["set"] = saveDBCommand{name: "set", saveCommandProc: SetExc, arity: 2, funcKeys: writeFirstKey}
 	saveCommandMap["del"] = saveDBCommand{name: "del", saveCommandProc: Del, arity: -1, funcKeys: writeAllKeys}
 
 	saveCommandMap["keys"] = saveDBCommand{name: "keys", saveCommandProc: Keys, arity: 1}
@@ -219,6 +221,9 @@ func (s *SaveServer) Exec(c *Connection, msg *Message) {
 		return
 	case "bgrewriteaof":
 		CreateSpecialCMD(c, BGReWriteAof(), nil)
+		return
+	case "flushall":
+		CreateSpecialCMD(c, FlushAll(), nil)
 		return
 	}
 	commandFunc, ok := saveCommandMap[cmd]
